@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Multi-Tenant Clients (Your Customers)
+model Client {
+  id               String          @id @default(cuid())
+  name             String
+  logoChar         String          @default("A")
+  logoUrl          String?         // NEW: Optional image URL for the logo
+  
+  enableReports    Boolean         @default(true)
+  enableAiReplies  Boolean         @default(true)
+  allowedPlatforms String          @default("instagram,whatsapp")
+  
+  users            User[]
+  socialAccounts   SocialAccount[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt @default(now())
+}
+model User {
+  id       String @id @default(cuid())
+  email    String @unique
+  password String
+  role     String @default("client")
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+// 2. Linked Social Media Accounts (Insta, TikTok, X, etc.)
+model SocialAccount {
+  id            String         @id @default(uuid())
+  clientId      String
+  client        Client         @relation(fields: [clientId], references: [id])
+  platform      String         // e.g., "instagram", "tiktok", "whatsapp"
+  platformId    String         // The ID given by the social platform
+  accessToken   String?        // OAuth token
+  conversations Conversation[]
+}
+
+// 3. The Unified Inbox Threads
+model Conversation {
+  id              String        @id @default(uuid())
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
+  customerName    String
+  customerHandle  String
+  aiStatus        String        @default("active") // "active" or "paused" for human handoff
+  messages        Message[]
+  updatedAt       DateTime      @updatedAt
+}
+
+// 4. Individual Messages
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  content        String
+  senderType     String       // "customer", "ai", or "human"
+  createdAt      DateTime     @default(now())
+}
