@@ -3,6 +3,7 @@
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,12 +35,24 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 bg-brand-orange text-white rounded-xl flex items-center justify-center font-bold text-2xl mx-auto mb-4">
-            B
+        
+        {/* Brand Header with Custom Logo & Tool Name */}
+        <div className="flex flex-col items-center mb-8">
+          <div className="relative w-40 h-14 mb-4">
+            <Image 
+              src="/logo.png" 
+              alt="Blink Social Manager Logo" 
+              fill 
+              style={{ objectFit: 'contain' }}
+              priority 
+            />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Welcome Back</h1>
-          <p className="text-sm text-slate-500 mt-2">Sign in to your dashboard</p>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+            Blink Social Manager
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Sign in to your multi-tenant dashboard
+          </p>
         </div>
 
         {error && (
