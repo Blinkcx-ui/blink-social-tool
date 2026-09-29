@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
+import CreateTicketModal from '@/components/CreateTicketModal';
 
 export const revalidate = 0;
 
@@ -8,7 +9,6 @@ export default async function InboxPage({
 }: {
   searchParams: Promise<{ chatId?: string }>;
 }) {
-  // 1. Await the searchParams to get the URL values in Next.js 15+
   const resolvedParams = await searchParams;
   
   const conversations = await prisma.conversation.findMany({
@@ -19,7 +19,6 @@ export default async function InboxPage({
     orderBy: { updatedAt: 'desc' },
   });
 
-  // 2. Use the resolved params to find the active chat
   const activeChatId = resolvedParams.chatId || (conversations.length > 0 ? conversations[0].id : null);
   const activeChat = conversations.find(c => c.id === activeChatId);
 
@@ -74,15 +73,26 @@ export default async function InboxPage({
                   {activeChat.customerHandle} via {activeChat.socialAccount.platform}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 font-medium">AI Agent:</span>
-                <span className={`px-3 py-1 rounded-md text-sm font-semibold border ${
-                  activeChat.aiStatus === 'active' 
-                    ? 'bg-green-100 text-green-700 border-green-200' 
-                    : 'bg-yellow-100 text-yellow-700 border-yellow-200'
-                }`}>
-                  {activeChat.aiStatus === 'active' ? 'Active' : 'Paused (Human Control)'}
-                </span>
+              <div className="flex items-center gap-4">
+                {/* NEW: Ticket Modal Component injected here */}
+                <CreateTicketModal 
+                  conversationId={activeChat.id}
+                  clientId={activeChat.socialAccount.clientId}
+                  customerName={activeChat.customerName}
+                  customerHandle={activeChat.customerHandle}
+                  source={activeChat.socialAccount.platform}
+                />
+                
+                <div className="flex items-center gap-2 border-l border-gray-300 pl-4">
+                  <span className="text-sm text-gray-600 font-medium">AI Agent:</span>
+                  <span className={`px-3 py-1 rounded-md text-sm font-semibold border ${
+                    activeChat.aiStatus === 'active' 
+                      ? 'bg-green-100 text-green-700 border-green-200' 
+                      : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                  }`}>
+                    {activeChat.aiStatus === 'active' ? 'Active' : 'Paused'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -109,7 +119,7 @@ export default async function InboxPage({
               ))}
             </div>
 
-            {/* Message Input Area (Static for now) */}
+            {/* Message Input Area */}
             <div className="p-4 bg-brand-card border-t border-brand-border">
               <div className="flex gap-2">
                 <input 
@@ -117,7 +127,7 @@ export default async function InboxPage({
                   placeholder="Type a message (Sending will automatically pause AI)..." 
                   className="flex-1 p-3 border border-brand-border rounded-md text-sm bg-brand-light focus:outline-brand-orange"
                 />
-                <button className="bg-brand-orange hover:bg-brand-orange-hover text-white px-6 py-3 rounded-md font-medium transition-colors">
+                <button className="bg-brand-orange hover:bg-orange-600 text-white px-6 py-3 rounded-md font-medium transition-colors">
                   Send
                 </button>
               </div>
