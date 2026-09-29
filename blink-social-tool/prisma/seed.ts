@@ -1,65 +1,45 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding database...');
+  console.log('Wiping all existing database records...');
 
-  // Create a dummy client with nested accounts, conversations, and messages
-  const alphaCorp = await prisma.client.create({
+  // 1. Delete all records in reverse order of their relations
+  await prisma.ticket.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.review.deleteMany();
+  await prisma.post.deleteMany();
+  await prisma.message.deleteMany();
+  await prisma.conversation.deleteMany();
+  await prisma.socialAccount.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.client.deleteMany();
+  
+  console.log('Database cleared. Creating master admin...');
+
+  // 2. Securely hash the admin password
+  const hashedPassword = await bcrypt.hash('Taha@2030', 10);
+
+  // 3. Create the admin user
+  // Note: Since your schema uses 'email' for login, we will store 'admin' in that field.
+  const adminUser = await prisma.user.create({
     data: {
-      name: 'Alpha Corp',
-      accounts: {
-        create: [
-          {
-            platform: 'instagram',
-            platformId: 'ig_12345',
-            conversations: {
-              create: [
-                {
-                  customerName: 'John Doe',
-                  customerHandle: '@johndoe',
-                  aiStatus: 'active',
-                  messages: {
-                    create: [
-                      { content: 'How much is the enterprise pricing?', senderType: 'customer' },
-                      { content: 'Hi John! Our enterprise plans start at $99/mo. Would you like a demo?', senderType: 'ai' }
-                    ]
-                  }
-                }
-              ]
-            }
-          },
-          {
-            platform: 'whatsapp',
-            platformId: 'wa_98765',
-            conversations: {
-              create: [
-                {
-                  customerName: 'Sarah Smith',
-                  customerHandle: '+1234567890',
-                  aiStatus: 'paused',
-                  messages: {
-                    create: [
-                      { content: 'I need help with my recent order.', senderType: 'customer' },
-                      { content: 'I can help with that! Let me check your account.', senderType: 'human' }
-                    ]
-                  }
-                }
-              ]
-            }
-          }
-        ]
-      }
-    }
+      email: 'admin@blinktolink.com',
+      password: hashedPassword,
+      role: 'admin',
+      // clientId is left null because this is the master admin, not a client
+    },
   });
 
-  console.log('Database seeded successfully with Client ID:', alphaCorp.id);
+  console.log('Seed completed successfully!');
+  console.log(`Admin created with username: ${adminUser.email}`);
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('Error seeding database:', e);
     process.exit(1);
   })
   .finally(async () => {
