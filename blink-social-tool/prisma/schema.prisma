@@ -9,27 +9,31 @@ datasource db {
 
 // 1. Multi-Tenant Clients (Your Customers)
 model Client {
-  id               String          @id @default(cuid())
-  name             String
-  logoChar         String          @default("A")
-  logoUrl          String?         // NEW: Optional image URL for the logo
-  
-  enableReports    Boolean         @default(true)
-  enableAiReplies  Boolean         @default(true)
-  allowedPlatforms String          @default("instagram,whatsapp")
-  
-  users            User[]
-  socialAccounts   SocialAccount[]
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt @default(now())
+  id                String          @id @default(cuid())
+  name              String
+  logoChar          String          @default("A")
+  logoUrl           String?         // Optional image URL for the logo
+
+  enableReports     Boolean         @default(true)
+  enableAiReplies   Boolean         @default(true)
+  allowedPlatforms  String          @default("instagram,whatsapp")
+
+  users             User[]
+  socialAccounts    SocialAccount[]
+  posts             Post[]          // NEW: Linked posts for publishing
+  reviews           Review[]        // NEW: Linked Google reviews
+  notifications     Notification[]  // NEW: Activity alerts and notifications
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt @default(now())
 }
+
 model User {
-  id       String @id @default(cuid())
-  email    String @unique
-  password String
-  role     String @default("client")
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      String   @default("client") // "admin" or "client"
+  clientId  String?  // Optional so master admin doesn't require a client ID
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
 
 // 2. Linked Social Media Accounts (Insta, TikTok, X, etc.)
@@ -41,6 +45,7 @@ model SocialAccount {
   platformId    String         // The ID given by the social platform
   accessToken   String?        // OAuth token
   conversations Conversation[]
+  notifications Notification[] // NEW: Notifications for this social account
 }
 
 // 3. The Unified Inbox Threads
@@ -63,4 +68,46 @@ model Message {
   content        String
   senderType     String       // "customer", "ai", or "human"
   createdAt      DateTime     @default(now())
+}
+
+// 5. NEW: Social Post Publishing Engine
+model Post {
+  id          String   @id @default(uuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  platform    String   // e.g., "instagram", "facebook", "twitter"
+  content     String   // Caption or text content
+  mediaUrl    String?  // Attached image or video link
+  status      String   @default("published") // "published", "scheduled", "failed"
+  createdAt   DateTime @default(now())
+}
+
+// 6. NEW: Google Reviews Management & Engagement
+model Review {
+  id           String   @id @default(uuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  reviewId     String   @unique // Unique ID provided by Google Business Profile
+  reviewerName String
+  rating       Int      // 1 to 5 stars
+  comment      String?  // Customer review comment text
+  replyComment String?  // Business owner reply text
+  createTime   DateTime
+  updatedAt    DateTime @updatedAt
+}
+
+// 7. NEW: Social Notifications
+model Notification {
+  id              String         @id @default(uuid())
+  clientId        String
+  client          Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  socialAccountId String?
+  socialAccount   SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  
+  type            String         // e.g., "COMMENT", "FOLLOW", "MENTION", "LIKE"
+  content         String         // e.g., "@johndoe commented on your latest post"
+  isRead          Boolean        @default(false)
+  
+  createdAt       DateTime       @default(now())
 }

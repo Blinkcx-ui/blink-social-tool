@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { triggerAiReply } from '@/app/inbox/actions';
 
 // GET: Handshake verification from Meta (WhatsApp / Instagram)
 export async function GET(req: NextRequest) {
@@ -68,7 +67,7 @@ export async function POST(req: NextRequest) {
 
           // If AI is active, trigger an automated OpenAI response!
           if (conversation.aiStatus === 'active') {
-            await triggerAiReply(conversation.id);
+            //await triggerAiReply(conversation.id);
           }
         }
       }
