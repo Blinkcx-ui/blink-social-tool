@@ -1,9 +1,7 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma"; // Use the global singleton!
 import bcrypt from "bcryptjs";
-
-const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -18,28 +16,35 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        // 1. Find the user in the live database
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
+        try {
+          // 1. Find the user in the live database
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+          });
 
-        if (!user) {
-          return null; // User not found
+          if (!user) {
+            console.error("Login Error: User not found in database.");
+            return null;
+          }
+
+          // 2. Verify the hashed password
+          const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+
+          if (!isPasswordValid) {
+            console.error("Login Error: Password mismatch.");
+            return null;
+          }
+
+          // 3. Return the user object if successful
+          return {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+          };
+        } catch (error) {
+          console.error("Auth Database Error:", error);
+          return null;
         }
-
-        // 2. Verify the hashed password
-        const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
-
-        if (!isPasswordValid) {
-          return null; // Password mismatch
-        }
-
-        // 3. Return the user object if successful
-        return {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-        };
       },
     }),
   ],
@@ -47,19 +52,19 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role; // Pass the admin role to the token
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.role = token.role as string; // Make role available in frontend
+        session.user.role = token.role as string;
       }
       return session;
     },
   },
   pages: {
-    signIn: "/login", // Redirects errors back to your custom login page
+    signIn: "/login",
   },
   session: {
     strategy: "jwt",
