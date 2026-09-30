@@ -1,12 +1,9 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Image from 'next/image';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,20 +15,23 @@ export default function LoginPage() {
     setError('');
     
     try {
-      const result = await signIn('credentials', {
-        redirect: false,
-        email: email.trim(),
-        password: password.trim(),
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
       });
 
-      if (result?.error) {
-        setError(result.error);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Invalid credentials');
         setLoading(false);
       } else {
-        window.location.href = '/';
+        // Force hard browser refresh to home dashboard
+        window.location.href = data.redirectUrl || '/';
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError('Network connection error');
       setLoading(false);
     }
   };
