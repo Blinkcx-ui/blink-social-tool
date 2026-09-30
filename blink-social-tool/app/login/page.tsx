@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { getCsrfToken } from 'next-auth/react';
 import Image from 'next/image';
 
 export default function LoginPage() {
@@ -16,37 +15,23 @@ export default function LoginPage() {
     setError('');
     
     try {
-      // 1. Fetch the security token explicitly
-      const csrfToken = await getCsrfToken();
-
-      // 2. Post directly to the NextAuth endpoint, bypassing the client wrapper
-      const res = await fetch('/api/auth/callback/credentials', {
+      const res = await fetch('/api/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          email: email.trim(),
-          password: password.trim(),
-          csrfToken: csrfToken || '',
-          json: 'true',
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        // If NextAuth returns a URL without an error flag, login succeeded!
-        if (data.url && !data.url.includes('error')) {
-          window.location.href = '/';
-          return;
-        }
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Invalid login credentials');
+        setLoading(false);
+      } else {
+        // Hard redirect instantly unlocks the layout and sidebar
+        window.location.href = data.redirectUrl || '/';
       }
-      
-      setError('Invalid email or password');
-      setLoading(false);
     } catch (err) {
-      console.error(err);
-      setError('Network error: Please try again');
+      setError('Network connection failed');
       setLoading(false);
     }
   };

@@ -1,35 +1,46 @@
-import NextAuth, { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import bcrypt from 'bcryptjs';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET,
-  session: { strategy: "jwt" },
-  providers: [
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        
-        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
-        if (!user || !user.password) throw new Error("Invalid credentials");
+export async function POST(request: Request) {
+  try {
+    const { email, password } = await request.json();
 
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) throw new Error("Invalid credentials");
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
 
-        return { id: user.id, email: user.email, role: user.role };
-      }
-    })
-  ],
-  pages: { signIn: "/login" },
-};
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim() },
+    });
 
-const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
+    if (!user || !user.password) {
+      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password.trim(), user.password);
+
+    if (!isPasswordValid) {
+      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+    }
+
+    // Set a secure cookie and return success
+    const response = NextResponse.json({ success: true, redirectUrl: '/' });
+    
+    response.cookies.set({
+      name: 'blink_session',
+      value: user.id,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7, // 1 week
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Login error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
