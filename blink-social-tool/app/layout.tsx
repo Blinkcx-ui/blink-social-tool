@@ -15,12 +15,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="flex h-screen bg-brand-light antialiased">
-        <AuthProvider>
-          <Sidebar />
-          <main className="flex-1 overflow-y-auto">
-            {children}
-          </main>
-        </AuthProvider>
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
       </body>
     </html>
   );
