@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Sidebar from "@/app/components/Sidebar";
+import AuthProvider from "@/app/components/AuthProvider";
 
 export const metadata: Metadata = {
   title: "Blink Social Tool",
@@ -15,10 +16,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="flex h-screen bg-brand-light antialiased">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
+        <AuthProvider>
+          <Sidebar />
+          <main className="flex-1 overflow-y-auto">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );
