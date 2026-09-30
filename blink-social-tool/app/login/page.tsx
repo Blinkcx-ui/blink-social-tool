@@ -1,5 +1,6 @@
 'use client';
 
+import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Image from 'next/image';
@@ -17,35 +18,20 @@ export default function LoginPage() {
     setError('');
     
     try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
+      const result = await signIn('credentials', {
+        redirect: false,
+        email: email.trim(),
+        password: password.trim(),
       });
 
-      const contentType = res.headers.get('content-type');
-      let data;
-      
-      if (contentType && contentType.includes('application/json')) {
-        data = await res.json();
+      if (result?.error) {
+        setError(result.error);
+        setLoading(false);
       } else {
-        // If Vercel returns an HTML 500 page, catch it cleanly
-        const text = await res.text();
-        throw new Error(`Server Error (${res.status}): ${text.slice(0, 100)}`);
+        window.location.href = '/';
       }
-
-      if (!res.ok) {
-        setError(data.error || 'Invalid email or password');
-      } else {
-        // Success! Redirect to home/dashboard
-        router.push('/');
-        router.refresh();
-      }
-    } catch (err: any) {
-      console.error('Login submit error:', err);
-      setError(err.message || 'An unexpected error occurred');
-    } finally {
-      // GUARANTEE the loading spinner always stops, preventing freezes
+    } catch (err) {
+      setError('An unexpected error occurred');
       setLoading(false);
     }
   };
@@ -69,7 +55,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-md mb-6 border border-red-100 text-center break-words">
+          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-md mb-6 border border-red-100 text-center">
             {error}
           </div>
         )}
