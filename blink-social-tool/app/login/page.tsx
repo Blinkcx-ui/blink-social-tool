@@ -23,18 +23,29 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim(), password: password.trim() }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        // If Vercel returns an HTML 500 page, catch it cleanly
+        const text = await res.text();
+        throw new Error(`Server Error (${res.status}): ${text.slice(0, 100)}`);
+      }
 
       if (!res.ok) {
         setError(data.error || 'Invalid email or password');
-        setLoading(false);
       } else {
-        // Successfully logged in! Push directly to dashboard
+        // Success! Redirect to home/dashboard
         router.push('/');
         router.refresh();
       }
-    } catch (err) {
-      setError('An unexpected error occurred');
+    } catch (err: any) {
+      console.error('Login submit error:', err);
+      setError(err.message || 'An unexpected error occurred');
+    } finally {
+      // GUARANTEE the loading spinner always stops, preventing freezes
       setLoading(false);
     }
   };
@@ -58,7 +69,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-md mb-6 border border-red-100 text-center">
+          <div className="bg-red-50 text-red-600 text-sm p-3 rounded-md mb-6 border border-red-100 text-center break-words">
             {error}
           </div>
         )}
@@ -71,7 +82,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-gray-50"
+              className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-900"
               placeholder="admin@blinktolink.com"
             />
           </div>
@@ -82,7 +93,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-gray-50"
+              className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-900"
               placeholder="••••••••"
             />
           </div>
