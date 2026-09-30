@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma"; // Use the global singleton!
 import bcrypt from "bcryptjs";
 
+export const dynamic = "force-dynamic";
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
