@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Sidebar from "@/app/components/Sidebar";
-import AuthProvider from "@/app/components/AuthProvider";
 
 export const metadata: Metadata = {
   title: "Blink Social Tool",

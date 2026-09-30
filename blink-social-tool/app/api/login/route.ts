@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { cookies } from 'headers'; // or standard next cookies
 
 export const dynamic = 'force-dynamic';
 
@@ -14,23 +13,22 @@ export async function POST(request: Request) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.trim() },
     });
 
     if (!user || !user.password) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password.trim(), user.password);
 
     if (!isPasswordValid) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
-    // Create a secure response
     const response = NextResponse.json({ success: true, redirectUrl: '/' });
     
-    // Set a lightweight auth cookie so your app knows you're logged in
+    // Set a clean, secure cookie
     response.cookies.set({
       name: 'blink_session',
       value: user.id,
@@ -41,9 +39,8 @@ export async function POST(request: Request) {
     });
 
     return response;
-
-  } catch (error: any) {
-    console.error('Login error:', error);
-    return NextResponse.json({ error: 'Server error occurred' }, { status: 500 });
+  } catch (error) {
+    console.error('Login backend error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

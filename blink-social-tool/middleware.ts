@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server';
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Allow all API routes, static files, and login page
   if (
     pathname.startsWith('/api') ||
     pathname.startsWith('/_next') ||
@@ -13,9 +14,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionCookie = req.cookies.get('blink_session')?.value;
+  const session = req.cookies.get('blink_session')?.value;
 
-  if (!sessionCookie && pathname !== '/login') {
+  if (!session) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
