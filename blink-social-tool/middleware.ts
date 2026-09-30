@@ -1,31 +1,35 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getToken } from 'next-auth/jwt';
 
-export async function middleware(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. EXPLICIT BYPASS: Never block API routes, Next.js static files, or the login page itself
+  // HARD BYPASS: Instantly allow ALL API routes, static files, and public pages
   if (
-    pathname.startsWith('/api/') || 
-    pathname.startsWith('/_next/') || 
-    pathname === '/login' || 
-    pathname === '/logo.png' || 
-    pathname === '/favicon.ico'
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/_next') ||
+    pathname.includes('.') || // allows images, favicons, etc.
+    pathname === '/login'
   ) {
     return NextResponse.next();
   }
 
-  // 2. Check for a valid NextAuth session token for all other pages (Dashboard, Inbox, etc.)
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  // Check for the NextAuth session cookie
+  const sessionToken = 
+    req.cookies.get('next-auth.session-token')?.value || 
+    req.cookies.get('__Secure-next-auth.session-token')?.value;
 
-  // 3. If no session token is found, redirect to the login page
-  if (!token) {
-    const loginUrl = req.nextUrl.clone();
-    loginUrl.pathname = '/login';
+  // If no session exists and they are trying to access a protected page, redirect to login
+  if (!sessionToken && pathname !== '/login') {
+    const loginUrl = new URL('/login', req.url);
+    loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // 4. Allow authenticated users to proceed to the page
   return NextResponse.next();
 }
+
+// Config matcher that explicitly avoids matching API routes
+export const config = {
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+};
