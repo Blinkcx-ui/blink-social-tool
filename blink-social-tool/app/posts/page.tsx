@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { PrismaClient } from '@prisma/client';
 
+// 1. EXPLICIT DYNAMIC FLAG: Prevents Vercel from crashing during build
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 
 export default async function PostsPage() {
