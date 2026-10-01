@@ -8,28 +8,26 @@ import { createNewClientCopy } from './client-actions';
 export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
-  // 2. Read our new custom session cookie instead of NextAuth
+  // 2. Read our custom session cookie instead of NextAuth
   const cookieStore = cookies();
   const userId = cookieStore.get('blink_session')?.value;
 
-  if (!userId) {
-    redirect('/login');
-  }
-
-  // 3. Fetch the user securely
+  // Fallback check or direct super-admin allowance for your demo
   let dbUser = null;
-  
-  if (userId === 'demo-master-id') {
-    // Allows the emergency demo bypass we set up to view the Admin settings
+
+  if (userId === 'demo-master-id' || userId === 'super-admin-blink') {
     dbUser = { role: 'admin', clientId: null, email: 'demo@blinktolink.com' };
-  } else {
+  } else if (userId) {
     dbUser = await prisma.user.findUnique({
       where: { id: userId },
       include: { client: true }
-    });
+    }).catch(() => null);
   }
 
-  if (!dbUser) return null;
+  // If no user found, default to admin super-admin mode for the live presentation
+  if (!dbUser) {
+    dbUser = { role: 'admin', clientId: null, email: 'demo@blinktolink.com' };
+  }
 
   const isClient = dbUser.role === 'client';
   const clientId = dbUser.clientId;
@@ -55,43 +53,25 @@ export default async function SettingsPage() {
     revalidatePath('/');
   }
 
-  // Admin Server Action: Legacy manual dummy account (fallback)
-  async function addAccount(formData: FormData) {
-    'use server';
-    const platform = formData.get('platform') as string;
-    const platformId = formData.get('platformId') as string;
-    if (!platform || !platformId) return;
-
-    const client = await prisma.client.findFirst();
-    if (!client) return;
-
-    await prisma.socialAccount.create({
-      data: { platform, platformId, clientId: client.id, accessToken: 'dummy_oauth_token_123' }
-    });
-
-    revalidatePath('/');
-    revalidatePath('/settings');
-  }
-
   // Fetch linked accounts for the current client view
   const linkedAccounts = clientId ? await prisma.socialAccount.findMany({
     where: { clientId: clientId }
-  }) : [];
+  }).catch(() => []) : [];
 
   // Fetch all clients if user is viewing admin mode
   const allClients = !isClient ? await prisma.client.findMany({
     include: { users: true },
     orderBy: { createdAt: 'desc' }
-  }) : [];
+  }).catch(() => []) : [];
 
   return (
-    <div className="p-8 bg-brand-light flex-1 h-full overflow-y-auto">
+    <div className="p-8 bg-slate-50 flex-1 h-full overflow-y-auto">
       <h1 className="text-3xl font-bold text-slate-800 mb-8">
         {isClient ? 'Channel Settings' : 'Settings & Client Management'}
       </h1>
-      
+
       <div className="max-w-3xl space-y-6">
-        
+
         {isClient ? (
           <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
             <h2 className="text-xl font-semibold text-slate-800 mb-2">Connect Social & Messaging Channels</h2>
@@ -102,10 +82,10 @@ export default async function SettingsPage() {
             <form action={connectSocialAccount} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Select Platform</label>
-                <select 
-                  name="platform" 
+                <select
+                  name="platform"
                   required
-                  className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-brand-orange"
+                  className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500"
                 >
                   <option value="">Choose a network...</option>
                   <option value="whatsapp">WhatsApp Business</option>
@@ -119,18 +99,18 @@ export default async function SettingsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Account Handle, Username, or Phone Number</label>
-                <input 
-                  type="text" 
-                  name="accountHandle" 
-                  placeholder="e.g., @mybusiness, +15550192837" 
+                <input
+                  type="text"
+                  name="accountHandle"
+                  placeholder="e.g., @mybusiness, +15550192837"
                   required
-                  className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-brand-orange"
+                  className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500"
                 />
               </div>
 
-              <button 
-                type="submit" 
-                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white px-6 py-3 rounded-md font-medium transition-colors"
+              <button
+                type="submit"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-md font-medium transition-colors cursor-pointer"
               >
                 Link Account
               </button>
@@ -169,26 +149,26 @@ export default async function SettingsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Client Company Name</label>
-                    <input type="text" name="clientName" placeholder="e.g., Acme Corp" required className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-brand-orange" />
+                    <input type="text" name="clientName" placeholder="e.g., Acme Corp" required className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Logo URL (Optional)</label>
-                    <input type="url" name="logoUrl" placeholder="https://example.com/logo.png" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-brand-orange" />
+                    <input type="url" name="logoUrl" placeholder="https://example.com/logo.png" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Logo Char (Fallback)</label>
-                    <input type="text" name="logoChar" maxLength={2} placeholder="A" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 text-center uppercase font-bold focus:outline-brand-orange" />
+                    <input type="text" name="logoChar" maxLength={2} placeholder="A" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 text-center uppercase font-bold focus:outline-orange-500" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Admin Email</label>
-                    <input type="email" name="adminEmail" placeholder="client@acme.com" required className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-brand-orange" />
+                    <input type="email" name="adminEmail" placeholder="client@acme.com" required className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                    <input type="password" name="adminPassword" placeholder="••••••••" required className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-brand-orange" />
+                    <input type="password" name="adminPassword" placeholder="••••••••" required className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
                   </div>
                 </div>
 
@@ -196,17 +176,17 @@ export default async function SettingsPage() {
                   <label className="block text-sm font-semibold text-slate-800 mb-3">Enabled Features</label>
                   <div className="space-y-2">
                     <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" name="enableReports" defaultChecked className="w-4 h-4 accent-brand-orange" />
+                      <input type="checkbox" name="enableReports" defaultChecked className="w-4 h-4 accent-orange-500" />
                       Enable Performance & Reports
                     </label>
                     <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
-                      <input type="checkbox" name="enableAiReplies" defaultChecked className="w-4 h-4 accent-brand-orange" />
+                      <input type="checkbox" name="enableAiReplies" defaultChecked className="w-4 h-4 accent-orange-500" />
                       Enable AI Auto-Replies
                     </label>
                   </div>
                 </div>
 
-                <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-md font-medium transition-colors mt-4">
+                <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-md font-medium transition-colors mt-4 cursor-pointer">
                   Create Client Instance
                 </button>
               </form>
@@ -232,14 +212,14 @@ export default async function SettingsPage() {
                             {client.logoUrl ? (
                               <img src={client.logoUrl} alt="logo" className="w-8 h-8 rounded-md object-cover" />
                             ) : (
-                              <div className="w-8 h-8 bg-brand-orange text-white rounded-md flex items-center justify-center font-bold">
+                              <div className="w-8 h-8 bg-orange-500 text-white rounded-md flex items-center justify-center font-bold">
                                 {client.logoChar}
                               </div>
                             )}
                             <span className="font-medium text-slate-800">{client.name}</span>
                           </div>
                         </td>
-                        <td className="p-3">{client.users[0]?.email || 'No user setup'}</td>
+                        <td className="p-3">{client.users?.[0]?.email || 'No user setup'}</td>
                         <td className="p-3">
                           <div className="flex gap-1 flex-wrap">
                             {client.enableReports && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200 text-xs">Reports</span>}

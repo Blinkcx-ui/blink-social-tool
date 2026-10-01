@@ -13,9 +13,9 @@ export default async function PostsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
+    <div className="min-h-screen bg-slate-50 p-8 flex-1 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
-        
+
         {/* Header & Create Button */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -34,7 +34,7 @@ export default async function PostsPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {posts.length === 0 ? (
             <div className="p-12 text-center text-slate-400 text-sm">
-              No posts found. Click "Create New Post" to publish your first update!
+              No posts found. Click &quot;Create New Post&quot; to publish your first update!
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
