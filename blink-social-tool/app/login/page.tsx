@@ -9,7 +9,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[99999] bg-slate-900 flex items-center justify-center p-4 w-screen h-screen">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl border border-gray-100 p-8 text-center">
         <div className="flex flex-col items-center mb-6">
           <div className="w-16 h-16 bg-orange-500 text-white rounded-xl flex items-center justify-center font-bold text-2xl mb-3 shadow-md">
