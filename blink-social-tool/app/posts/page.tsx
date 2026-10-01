@@ -1,22 +1,22 @@
 import Link from 'next/link';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
-// 1. EXPLICIT DYNAMIC FLAG: Prevents Vercel from crashing during build
 export const dynamic = 'force-dynamic';
-
-const prisma = new PrismaClient();
+export const revalidate = 0;
 
 export default async function PostsPage() {
-  // Fetch posts from your database
-  const posts = await prisma.post.findMany({
-    orderBy: { createdAt: 'desc' },
-  });
+  let posts: any[] = [];
+  try {
+    posts = await prisma.post.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  } catch (e) {
+    posts = [];
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 flex-1 overflow-y-auto">
+    <div className="min-h-screen bg-slate-50 p-8 flex-1 overflow-y-auto w-full">
       <div className="max-w-4xl mx-auto">
-
-        {/* Header & Create Button */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Social Posts</h1>
@@ -30,7 +30,6 @@ export default async function PostsPage() {
           </Link>
         </div>
 
-        {/* Posts Table / List */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {posts.length === 0 ? (
             <div className="p-12 text-center text-slate-400 text-sm">
@@ -62,7 +61,6 @@ export default async function PostsPage() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
