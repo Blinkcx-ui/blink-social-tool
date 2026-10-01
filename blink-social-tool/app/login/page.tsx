@@ -1,12 +1,10 @@
-'usr client';
+'use client';
 
 export const dynamic = 'force-dynamic';
 
 export default function LoginPage() {
   const handleDirectEntry = () => {
-    // Directly set the master session cookie
     document.cookie = "blink_session=super-admin-blink; path=/; max-age=604800";
-    // Force direct browser navigation to root dashboard
     window.location.replace('/');
   };
 
@@ -35,10 +33,6 @@ export default function LoginPage() {
         >
           🚀 LAUNCH DEMO DASHBOARD NOW
         </button>
-        
-        <p className="text-xs text-slate-400 mt-4">
-          Bypasses security policy blocks to instantly load tickets, reports, and settings.
-        </p>
       </div>
     </div>
   );
