@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -24,22 +24,22 @@ export default function LoginPage() {
 
       if (res.ok && data.success) {
         document.cookie = "blink_session=super-admin-blink; path=/; max-age=604800";
-        window.location.href = '/';
+        window.location.assign('/');
       } else {
-        setError(data.error || 'Invalid credentials');
+        setError(data.error || 'Login failed');
         setLoading(false);
       }
     } catch (err) {
-      setError('Network error. Try again.');
+      setError('Network connection error');
       setLoading(false);
     }
-  };
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl border border-gray-100 p-8">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-brand-orange text-white rounded-xl flex items-center justify-center font-bold text-2xl mb-3 shadow-md">
+          <div className="w-16 h-16 bg-orange-500 text-white rounded-xl flex items-center justify-center font-bold text-2xl mb-3 shadow-md">
             B
           </div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
@@ -56,13 +56,13 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Username / Email</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
             <input 
               type="text" 
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-900 focus:outline-brand-orange"
+              className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-900 focus:outline-orange-500"
             />
           </div>
           <div>
@@ -72,7 +72,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-900 focus:outline-brand-orange"
+              className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-900 focus:outline-orange-500"
             />
           </div>
           <button 
@@ -80,7 +80,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-slate-900 hover:bg-slate-800 text-white px-6 py-3.5 rounded-lg font-bold text-sm transition-colors shadow-sm cursor-pointer"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
       </div>
