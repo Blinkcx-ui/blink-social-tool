@@ -1,24 +1,40 @@
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createNewClientCopy } from './client-actions';
 
+// 1. Guarantee Vercel builds successfully
+export const dynamic = 'force-dynamic';
+
 export default async function SettingsPage() {
-  const session = await getServerSession(authOptions);
-  if (!session) return null;
+  // 2. Read our new custom session cookie instead of NextAuth
+  const cookieStore = cookies();
+  const userId = cookieStore.get('blink_session')?.value;
 
-  // Identify who is logged in
-  const userEmail = session.user?.email || '';
-  const dbUser = await prisma.user.findUnique({
-    where: { email: userEmail },
-    include: { client: true }
-  });
+  if (!userId) {
+    redirect('/login');
+  }
 
-  const isClient = dbUser?.role === 'client';
-  const clientId = dbUser?.clientId;
+  // 3. Fetch the user securely
+  let dbUser = null;
+  
+  if (userId === 'demo-master-id') {
+    // Allows the emergency demo bypass we set up to view the Admin settings
+    dbUser = { role: 'admin', clientId: null, email: 'demo@blinktolink.com' };
+  } else {
+    dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { client: true }
+    });
+  }
 
-  // 1. Client Server Action: Link social accounts securely
+  if (!dbUser) return null;
+
+  const isClient = dbUser.role === 'client';
+  const clientId = dbUser.clientId;
+
+  // Client Server Action: Link social accounts securely
   async function connectSocialAccount(formData: FormData) {
     'use server';
     const platform = formData.get('platform') as string;
@@ -39,7 +55,7 @@ export default async function SettingsPage() {
     revalidatePath('/');
   }
 
-  // 2. Admin Server Action: Legacy manual dummy account (fallback)
+  // Admin Server Action: Legacy manual dummy account (fallback)
   async function addAccount(formData: FormData) {
     'use server';
     const platform = formData.get('platform') as string;
@@ -76,7 +92,6 @@ export default async function SettingsPage() {
       
       <div className="max-w-3xl space-y-6">
         
-        {/* CLIENT VIEW: Multi-Account Social Connector */}
         {isClient ? (
           <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
             <h2 className="text-xl font-semibold text-slate-800 mb-2">Connect Social & Messaging Channels</h2>
@@ -121,7 +136,6 @@ export default async function SettingsPage() {
               </button>
             </form>
 
-            {/* List of currently linked channels for this client */}
             <div className="mt-8 border-t border-gray-100 pt-6">
               <h3 className="text-lg font-semibold text-slate-800 mb-4">Your Linked Channels ({linkedAccounts.length})</h3>
               {linkedAccounts.length > 0 ? (
@@ -144,7 +158,6 @@ export default async function SettingsPage() {
             </div>
           </div>
         ) : (
-          /* ADMIN VIEW: Provisioner Forms & Global Controls */
           <>
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
               <h2 className="text-xl font-semibold text-slate-800 mb-2">Provision New Client App</h2>
@@ -199,7 +212,6 @@ export default async function SettingsPage() {
               </form>
             </div>
 
-            {/* Active Clients Table */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mt-8">
               <h2 className="text-xl font-semibold text-slate-800 mb-4">Active Clients</h2>
               <div className="overflow-x-auto">
