@@ -24,30 +24,40 @@ export default function RootLayout({
             </div>
           </div>
 
-          {/* Navigation Links */}
+          {/* Full Navigation Menu */}
           <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-            <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Platform</p>
+            <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Main Menu</p>
             
             <Link href="/" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
               <span>📊</span>
               <span>Dashboard</span>
             </Link>
 
+            <Link href="/inbox" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
+              <span>💬</span>
+              <span>Unified Inbox</span>
+            </Link>
+
             <Link href="/tickets" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
-              <span>📥</span>
-              <span>Unified Inbox / Tickets</span>
+              <span>🎫</span>
+              <span>Tickets</span>
             </Link>
 
             <Link href="/reports" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
               <span>📈</span>
-              <span>Reports & Analytics</span>
+              <span>Reports</span>
+            </Link>
+
+            <Link href="/activity" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
+              <span>📋</span>
+              <span>Activity Log</span>
             </Link>
 
             <div className="pt-6">
-              <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Configuration</p>
+              <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">System</p>
               <Link href="/settings" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
                 <span>⚙️</span>
-                <span>Settings & Channels</span>
+                <span>Settings</span>
               </Link>
             </div>
           </nav>
@@ -59,7 +69,7 @@ export default function RootLayout({
             </div>
             <div className="overflow-hidden">
               <p className="text-xs font-semibold text-white truncate">Blink Admin</p>
-              <p className="text-[10px] text-slate-400 truncate">demo@blinktolink.com</p>
+              <p className="text-[10px] text-slate-400 truncate">Super Admin Mode</p>
             </div>
           </div>
         </aside>
