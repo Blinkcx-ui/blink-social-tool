@@ -3,13 +3,16 @@
 export const dynamic = 'force-dynamic';
 
 export default function LoginPage() {
-  const handleDirectEntry = () => {
+  const handleDirectEntry = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Set the master session cookie that unlocks everything
     document.cookie = "blink_session=super-admin-blink; path=/; max-age=604800";
-    window.location.replace('/');
+    // Force complete browser navigation to the root dashboard
+    window.location.assign('/');
   };
 
   return (
-    <div className="fixed inset-0 z-[99999] bg-slate-900 flex items-center justify-center p-4 w-screen h-screen">
+    <div className="w-screen h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl border border-gray-100 p-8 text-center">
         <div className="flex flex-col items-center mb-6">
           <div className="w-16 h-16 bg-orange-500 text-white rounded-xl flex items-center justify-center font-bold text-2xl mb-3 shadow-md">
@@ -31,7 +34,7 @@ export default function LoginPage() {
           onClick={handleDirectEntry}
           className="w-full bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-4 rounded-xl font-bold text-base transition-colors shadow-lg cursor-pointer"
         >
-          🚀 LAUNCH DEMO DASHBOARD NOW
+          🚀 LAUNCH FULL PLATFORM NOW
         </button>
       </div>
     </div>

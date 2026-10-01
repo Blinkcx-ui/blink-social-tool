@@ -9,11 +9,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="flex h-screen bg-slate-50 antialiased overflow-hidden">
-        {/* Main Application Shell */}
-        <div className="flex h-screen w-full overflow-hidden">
-          {children}
-        </div>
+      <body className="h-screen w-screen bg-slate-900 antialiased overflow-x-hidden m-0 p-0">
+        {children}
       </body>
     </html>
   );
