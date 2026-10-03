@@ -1,114 +1,78 @@
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { createNewClientCopy } from './client-actions';
 
+// 1. Guarantee Vercel builds successfully
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 export default async function SettingsPage() {
-  const cookieStore = cookies();
+  // FIX: Next.js 15 requires 'await' before cookies()
+  const cookieStore = await cookies();
   const userId = cookieStore.get('blink_session')?.value;
 
-  let dbUser: any = { role: 'admin', clientId: null, email: 'demo@blinktolink.com' };
-
-  try {
-    if (userId && userId !== 'demo-master-id' && userId !== 'super-admin-blink') {
-      const found = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { client: true }
-      });
-      if (found) dbUser = found;
-    }
-  } catch (e) {
-    dbUser = { role: 'admin', clientId: null, email: 'demo@blinktolink.com' };
+  if (!userId) {
+    redirect('/login');
   }
+
+  // 3. Fetch the real user securely from your database
+  let dbUser = null;
+
+  if (userId === 'demo-master-id' || userId === 'super-admin-blink') {
+    dbUser = { role: 'admin', clientId: null, email: 'demo@blinktolink.com' };
+  } else {
+    dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { client: true }
+    });
+  }
+
+  if (!dbUser) return null;
 
   const isClient = dbUser.role === 'client';
   const clientId = dbUser.clientId;
 
+  // Client Server Action: Link real social accounts securely
   async function connectSocialAccount(formData: FormData) {
     'use server';
     const platform = formData.get('platform') as string;
     const accountHandle = formData.get('accountHandle') as string;
 
-    if (!platform || !accountHandle) return;
+    if (!platform || !accountHandle || !clientId) return;
 
-    try {
-      await prisma.socialAccount.create({
-        data: {
-          platform,
-          platformId: accountHandle,
-          clientId: clientId || 'super-admin-id',
-          accessToken: 'mock_oauth_token_' + Date.now(),
-        },
-      });
-    } catch (err) {
-      console.error(err);
-    }
+    await prisma.socialAccount.create({
+      data: {
+        platform,
+        platformId: accountHandle,
+        clientId: clientId,
+        accessToken: 'mock_oauth_token_' + Date.now(),
+      },
+    });
 
     revalidatePath('/settings');
     revalidatePath('/');
   }
 
-  async function createNewClientCopy(formData: FormData) {
-    'use server';
-    const clientName = formData.get('clientName') as string;
-    const adminEmail = formData.get('adminEmail') as string;
-    const adminPassword = formData.get('adminPassword') as string;
-    const logoUrl = formData.get('logoUrl') as string;
-    const logoChar = formData.get('logoChar') as string || 'A';
+  // Fetch real linked accounts from the database
+  const linkedAccounts = clientId ? await prisma.socialAccount.findMany({
+    where: { clientId: clientId }
+  }) : [];
 
-    if (!clientName || !adminEmail) return;
-
-    try {
-      await prisma.client.create({
-        data: {
-          name: clientName,
-          logoUrl: logoUrl || null,
-          logoChar: logoChar,
-          enableReports: true,
-          enableAiReplies: true,
-          users: {
-            create: {
-              email: adminEmail,
-              password: adminPassword,
-              role: 'client',
-            }
-          }
-        }
-      });
-    } catch (e) {
-      console.error(e);
-    }
-
-    revalidatePath('/settings');
-  }
-
-  let linkedAccounts: any[] = [];
-  let allClients: any[] = [];
-
-  try {
-    if (clientId) {
-      linkedAccounts = await prisma.socialAccount.findMany({ where: { clientId } });
-    }
-    if (!isClient) {
-      allClients = await prisma.client.findMany({
-        include: { users: true },
-        orderBy: { createdAt: 'desc' }
-      });
-    }
-  } catch (e) {
-    linkedAccounts = [];
-    allClients = [];
-  }
+  // Fetch all real clients from the database
+  const allClients = !isClient ? await prisma.client.findMany({
+    include: { users: true },
+    orderBy: { createdAt: 'desc' }
+  }) : [];
 
   return (
-    <div className="p-8 bg-slate-50 flex-1 h-full overflow-y-auto w-full">
+    <div className="p-8 bg-slate-50 flex-1 h-full overflow-y-auto">
       <h1 className="text-3xl font-bold text-slate-800 mb-8">
         {isClient ? 'Channel Settings' : 'Settings & Client Management'}
       </h1>
 
       <div className="max-w-3xl space-y-6">
+
         {isClient ? (
           <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
             <h2 className="text-xl font-semibold text-slate-800 mb-2">Connect Social & Messaging Channels</h2>
@@ -147,7 +111,7 @@ export default async function SettingsPage() {
 
               <button
                 type="submit"
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-md font-medium transition-colors cursor-pointer"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-md font-medium transition-colors"
               >
                 Link Account
               </button>
@@ -209,7 +173,21 @@ export default async function SettingsPage() {
                   </div>
                 </div>
 
-                <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-md font-medium transition-colors mt-4 cursor-pointer">
+                <div className="border-t border-gray-200 pt-4">
+                  <label className="block text-sm font-semibold text-slate-800 mb-3">Enabled Features</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
+                      <input type="checkbox" name="enableReports" defaultChecked className="w-4 h-4 accent-orange-500" />
+                      Enable Performance & Reports
+                    </label>
+                    <label className="flex items-center gap-3 text-sm text-slate-700 cursor-pointer">
+                      <input type="checkbox" name="enableAiReplies" defaultChecked className="w-4 h-4 accent-orange-500" />
+                      Enable AI Auto-Replies
+                    </label>
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-md font-medium transition-colors mt-4">
                   Create Client Instance
                 </button>
               </form>
@@ -223,14 +201,32 @@ export default async function SettingsPage() {
                     <tr>
                       <th className="p-3 font-medium text-slate-800">Client</th>
                       <th className="p-3 font-medium text-slate-800">Admin Login</th>
+                      <th className="p-3 font-medium text-slate-800">Features</th>
                       <th className="p-3 font-medium text-slate-800">Created</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {allClients.map((client: any) => (
+                    {allClients.map(client => (
                       <tr key={client.id} className="hover:bg-gray-50/50">
-                        <td className="p-3 font-medium text-slate-800">{client.name}</td>
-                        <td className="p-3">{client.users?.[0]?.email || 'No user setup'}</td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-3">
+                            {client.logoUrl ? (
+                              <img src={client.logoUrl} alt="logo" className="w-8 h-8 rounded-md object-cover" />
+                            ) : (
+                              <div className="w-8 h-8 bg-orange-500 text-white rounded-md flex items-center justify-center font-bold">
+                                {client.logoChar}
+                              </div>
+                            )}
+                            <span className="font-medium text-slate-800">{client.name}</span>
+                          </div>
+                        </td>
+                        <td className="p-3">{client.users[0]?.email || 'No user setup'}</td>
+                        <td className="p-3">
+                          <div className="flex gap-1 flex-wrap">
+                            {client.enableReports && <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200 text-xs">Reports</span>}
+                            {client.enableAiReplies && <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded border border-green-200 text-xs">AI</span>}
+                          </div>
+                        </td>
                         <td className="p-3">{new Date(client.createdAt).toLocaleDateString()}</td>
                       </tr>
                     ))}
@@ -240,6 +236,7 @@ export default async function SettingsPage() {
             </div>
           </>
         )}
+
       </div>
     </div>
   );

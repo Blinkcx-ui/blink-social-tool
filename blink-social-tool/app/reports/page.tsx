@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-// Demo Data 
+// Demo Data
 const mockData = [
   {
     ref: "TCK-1042", date: "2026-10-01", employee: "Ahmed S.", customer: "Khalid M.", mobile: "0501234567",
@@ -41,7 +41,6 @@ export default function ReportsPage() {
   });
 
   const downloadCSV = () => {
-    // 1. Translated English Headers for the CSV
     const headers = [
       "Ticket Ref", "Ticket Date", "Employee Name", "Customer Name", "Customer Mobile", "City", "Branch", "Customer Type",
       "Department", "Ticket Type", "Escalated?", "Ticket Source", "Status Description", "Employee Notes", "Main Category", "Sub Category",
@@ -49,7 +48,7 @@ export default function ReportsPage() {
     ];
 
     const csvRows = [headers.join(",")];
-    
+
     filteredData.forEach(row => {
       const values = [
         row.ref, row.date, row.employee, row.customer, row.mobile, row.city, row.branch, row.customerType,
@@ -72,15 +71,15 @@ export default function ReportsPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-8 flex-1 h-full overflow-y-auto w-full">
       <div className="max-w-[1600px] mx-auto">
-        
+
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Reports & Export</h1>
             <p className="text-sm text-slate-500 mt-1">Filter and download advanced ticket analytics.</p>
           </div>
-          <button 
+          <button
             onClick={downloadCSV}
-            className="bg-brand-orange hover:bg-orange-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2"
+            className="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-2 cursor-pointer"
           >
             Download CSV Report
           </button>
@@ -89,10 +88,10 @@ export default function ReportsPage() {
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex gap-4 items-end">
           <div className="flex-1 max-w-xs">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Ticket Status</label>
-            <select 
-              value={statusFilter} 
+            <select
+              value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-800 focus:outline-brand-orange"
+              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-800 focus:outline-orange-500"
             >
               <option value="">All Statuses</option>
               <option value="pending">Pending</option>
@@ -102,10 +101,10 @@ export default function ReportsPage() {
           </div>
           <div className="flex-1 max-w-xs">
             <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase">Ticket Type</label>
-            <select 
-              value={typeFilter} 
+            <select
+              value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-800 focus:outline-brand-orange"
+              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-slate-800 focus:outline-orange-500"
             >
               <option value="">All Types</option>
               <option value="Complaint">Complaint</option>
@@ -120,7 +119,6 @@ export default function ReportsPage() {
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left text-sm text-slate-600 whitespace-nowrap min-w-[2500px]">
               <thead className="bg-slate-800 text-white border-b border-gray-200">
-                {/* 2. Translated English Headers for the UI Table */}
                 <tr>
                   <th className="p-3 font-semibold">Ticket Ref</th>
                   <th className="p-3 font-semibold">Ticket Date</th>
