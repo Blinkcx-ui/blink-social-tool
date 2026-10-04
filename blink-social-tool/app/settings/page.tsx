@@ -29,7 +29,7 @@ export default async function SettingsPage() {
     orderBy: { createdAt: 'desc' }
   }).catch(() => []);
 
-  // Server Action to delete a client tenant and clean up users/accounts
+  // Server Action: Delete a client tenant and clean up users/accounts
   async function deleteClient(formData: FormData) {
     'use server';
     const clientId = formData.get('clientId') as string;
@@ -45,22 +45,36 @@ export default async function SettingsPage() {
     }
   }
 
-  // Server Action to link accounts via OAuth or direct handle entry
-  async function connectSocialAccount(formData: FormData) {
+  // Server Action: Insert real social account credentials (NO MOCK TOKENS)
+  async function connectRealAccount(formData: FormData) {
     'use server';
     const platform = formData.get('platform') as string;
-    const accountHandle = formData.get('accountHandle') as string;
+    const platformId = formData.get('platformId') as string;
+    const accessToken = formData.get('accessToken') as string;
     const assignedClientId = formData.get('targetClientId') as string || currentClientId;
 
-    if (!platform || !accountHandle || !assignedClientId) return;
+    if (!platform || !platformId || !assignedClientId) return;
 
     await prisma.socialAccount.create({
       data: {
         platform,
-        platformId: accountHandle,
+        platformId, // Saves exact user input
         clientId: assignedClientId,
-        accessToken: 'live_token_' + Date.now(),
+        accessToken: accessToken || null, // Saves exact user input (no fake appended strings)
       },
+    });
+
+    revalidatePath('/settings');
+  }
+
+  // Server Action: Delete a connected social account
+  async function removeAccount(formData: FormData) {
+    'use server';
+    const accountId = formData.get('accountId') as string;
+    if (!accountId) return;
+
+    await prisma.socialAccount.delete({
+      where: { id: accountId },
     });
 
     revalidatePath('/settings');
@@ -77,19 +91,19 @@ export default async function SettingsPage() {
 
       <div className="max-w-5xl space-y-8">
         
-        {/* Social Accounts Connection Form */}
+        {/* Real Account Connection Form */}
         <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-800 mb-2">Connect Social & Messaging Channels</h2>
-          <p className="text-sm text-slate-500 mb-6">Link platform accounts to enable AI auto-replies and unified inbox features.</p>
+          <h2 className="text-xl font-semibold text-slate-800 mb-2">Connect Real Social Account</h2>
+          <p className="text-sm text-slate-500 mb-6">Input live business handles and access tokens for your active tenant.</p>
 
-          <form action={connectSocialAccount} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <form action={connectRealAccount} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               
               {!isClient && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Assign to Client</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Target Client</label>
                   <select name="targetClientId" required className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500">
-                    <option value="">Select a client...</option>
+                    <option value="">Select client...</option>
                     {allClients.map((c: any) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
@@ -98,44 +112,56 @@ export default async function SettingsPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Select Platform</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Platform</label>
                 <select name="platform" required className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500">
-                  <option value="">Choose a network...</option>
+                  <option value="">Select platform...</option>
                   <option value="whatsapp">WhatsApp Business</option>
-                  <option value="instagram">Instagram Direct</option>
-                  <option value="tiktok">TikTok Business</option>
-                  <option value="snapchat">Snapchat</option>
-                  <option value="facebook">Facebook</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="tiktok">TikTok</option>
                   <option value="x">X (Twitter)</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="snapchat">Snapchat</option>
                   <option value="google-reviews">Google Reviews</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Account Handle / Number</label>
-                <input type="text" name="accountHandle" placeholder="e.g., @mybusiness" required className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Account Handle / ID</label>
+                <input type="text" name="platformId" placeholder="e.g. @brand_handle or ID" required className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Access Token (Optional)</label>
+                <input type="text" name="accessToken" placeholder="Live API token..." className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
               </div>
             </div>
-            <button type="submit" className="w-full md:w-auto bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-md font-medium transition-colors cursor-pointer">
-              Link Account
+
+            <button type="submit" className="bg-pink-600 hover:bg-pink-700 text-white font-bold px-8 py-3 rounded-lg text-sm transition cursor-pointer shadow">
+              + Add Live Account
             </button>
           </form>
 
           {/* Connected Accounts List */}
           {linkedAccounts.length > 0 && (
             <div className="mt-8 border-t border-gray-100 pt-6">
-              <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide">Active Integrations</h3>
+              <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide">Connected Accounts</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {linkedAccounts.map((acc: any) => (
                   <div key={acc.id} className="p-4 border border-gray-200 rounded-lg flex flex-col justify-between bg-slate-50">
                     <div className="flex justify-between items-start mb-2">
                       <span className="font-bold text-[10px] bg-white border border-gray-200 px-2 py-1 rounded text-slate-600 uppercase tracking-wider">{acc.platform}</span>
-                      <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                      <form action={removeAccount}>
+                        <input type="hidden" name="accountId" value={acc.id} />
+                        <button type="submit" className="text-red-500 hover:text-red-700 text-xs font-bold cursor-pointer transition">Remove</button>
+                      </form>
                     </div>
                     <div>
-                      <p className="text-sm text-slate-800 font-bold">{acc.platformId}</p>
+                      <p className="text-sm text-slate-800 font-bold break-all">{acc.platformId}</p>
+                      {acc.accessToken && (
+                        <p className="text-[10px] text-slate-400 mt-1 truncate">Token saved</p>
+                      )}
                       {!isClient && acc.client && (
-                        <p className="text-xs text-slate-500 mt-1">Assigned to: {acc.client.name}</p>
+                        <p className="text-xs text-slate-500 mt-1">Client: {acc.client.name}</p>
                       )}
                     </div>
                   </div>
