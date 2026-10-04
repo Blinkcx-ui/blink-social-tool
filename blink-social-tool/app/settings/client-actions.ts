@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 
 export async function createNewClientCopy(formData: FormData) {
   const clientName = formData.get('clientName') as string;
@@ -21,7 +21,7 @@ export async function createNewClientCopy(formData: FormData) {
     throw new Error('Missing required fields for client provisioning.');
   }
 
-  // Securely hash the admin password
+  // Securely hash the admin password using bcryptjs
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
   try {
