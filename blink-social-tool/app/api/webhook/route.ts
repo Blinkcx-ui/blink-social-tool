@@ -1,82 +1,91 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
 
-// GET: Handshake verification from Meta (WhatsApp / Instagram)
-export async function GET(req: NextRequest) {
-  const searchParams = req.nextUrl.searchParams;
-  const mode = searchParams.get('hub.mode');
-  const token = searchParams.get('hub.verify_token');
-  const challenge = searchParams.get('hub.challenge');
+export const dynamic = 'force-dynamic';
 
-  // Match this token with what you set in your Meta Developer Console
+// 1. Handle Webhook Verification (Required by Meta / WhatsApp / Instagram API setup)
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const mode = url.searchParams.get('hub.mode');
+  const token = url.searchParams.get('hub.verify_token');
+  const challenge = url.searchParams.get('hub.challenge');
+
+  // Set your own verification token string here or via environment variables
   const VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || 'blink_secure_token';
 
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
     return new NextResponse(challenge, { status: 200 });
   }
-  return new NextResponse('Verification failed', { status: 403 });
+
+  return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
 }
 
-// POST: Ingest incoming customer messages
-export async function POST(req: NextRequest) {
+// 2. Handle Incoming Real-Time Messages and Notifications
+export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // Basic payload parsing for Meta/WhatsApp structure
-    const entry = body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
-    const messageData = value?.messages?.[0];
+    // Standard payload handling for social channels (Meta/WhatsApp/Custom API)
+    // You can adapt this depending on the exact JSON payload format of your provider
+    const platformId = body.platformId || body.entry?.[0]?.id;
+    const senderName = body.senderName || body.entry?.[0]?.messaging?.[0]?.sender?.id || 'Customer';
+    const messageText = body.messageText || body.entry?.[0]?.messaging?.[0]?.message?.text;
 
-    if (messageData) {
-      const senderPhone = messageData.from; // e.g., customer handle/phone
-      const messageBody = messageData.text?.body;
-      const platformId = value.metadata?.phone_number_id || 'wa_default';
-
-      if (senderPhone && messageBody) {
-        // Find the social account in your database
-        const socialAccount = await prisma.socialAccount.findFirst({
-          where: { platformId },
-        });
-
-        if (socialAccount) {
-          // Find or create a conversation for this customer
-          let conversation = await prisma.conversation.findFirst({
-            where: { socialAccountId: socialAccount.id, customerHandle: senderPhone },
-          });
-
-          if (!conversation) {
-            conversation = await prisma.conversation.create({
-              data: {
-                socialAccountId: socialAccount.id,
-                customerName: `Customer ${senderPhone.slice(-4)}`,
-                customerHandle: senderPhone,
-                aiStatus: 'active',
-              },
-            });
-          }
-
-          // Save the incoming customer message
-          await prisma.message.create({
-            data: {
-              conversationId: conversation.id,
-              content: messageBody,
-              senderType: 'customer',
-            },
-          });
-
-          // If AI is active, trigger an automated OpenAI response!
-          if (conversation.aiStatus === 'active') {
-            //await triggerAiReply(conversation.id);
-          }
-        }
-      }
+    if (!platformId || !messageText) {
+      return NextResponse.json({ success: true, warning: 'Ignored non-message event' });
     }
 
-    // Always return 200 fast so Meta doesn't retry the webhook
-    return NextResponse.json({ success: true }, { status: 200 });
+    // Find the linked social account in your database
+    const socialAccount = await prisma.socialAccount.findFirst({
+      where: { platformId },
+    });
+
+    if (!socialAccount) {
+      return NextResponse.json({ error: 'Social account not found in database' }, { status: 404 });
+    }
+
+    // Find or create the conversation thread for this customer
+    let conversation = await prisma.conversation.findFirst({
+      where: { 
+        socialAccountId: socialAccount.id, 
+        customerName: senderName 
+      },
+    });
+
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: {
+          socialAccountId: socialAccount.id,
+          customerName: senderName,
+          customerHandle: `@${senderName.toLowerCase().replace(/\s+/g, '_')}`,
+          aiStatus: 'active',
+        },
+      });
+    }
+
+    // Save the real incoming message into your database inbox
+    await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        content: messageText,
+        senderType: 'customer',
+      },
+    });
+
+    // Automatically spawn a notification alert for this new message
+    await prisma.notification.create({
+      data: {
+        clientId: socialAccount.clientId,
+        socialAccountId: socialAccount.id,
+        type: 'MESSAGE',
+        content: `New message received from ${senderName}`,
+        targetUrl: `/inbox`,
+      },
+    });
+
+    return NextResponse.json({ success: true, message: 'Message logged and synced successfully' });
   } catch (error) {
-    console.error('Webhook error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    console.error('Webhook processing error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
