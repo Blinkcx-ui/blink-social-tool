@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { createNewClientCopy } from './client-actions';
+import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,8 +12,7 @@ export default async function SettingsPage() {
 
   if (!userId) redirect('/login');
 
-  let dbUser: any = { role: 'admin', clientId: null, email: 'admin@blinktolink.com' };
-
+  let dbUser: any = { role: 'admin', clientId: null };
   if (userId !== 'demo-master-id' && userId !== 'super-admin-blink') {
     dbUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -21,256 +20,229 @@ export default async function SettingsPage() {
     }) || dbUser;
   }
 
-  const isClient = dbUser.role === 'client';
   const currentClientId = dbUser.clientId;
+  const isClient = dbUser.role === 'client';
 
+  // FETCH REAL ACCOUNTS
+  const linkedAccounts = await prisma.socialAccount.findMany({
+    where: currentClientId ? { clientId: currentClientId } : {},
+    include: { client: true }
+  }).catch(() => []);
+
+  const isConnected = (platform: string) => linkedAccounts.some(acc => acc.platform === platform);
+  const getCount = (platform: string) => linkedAccounts.filter(acc => acc.platform === platform).length;
+
+  // FETCH ALL USERS/TENANTS (For Admin View)
   const allClients = await prisma.client.findMany({
-    include: { users: true, socialAccounts: true },
+    include: { users: true },
     orderBy: { createdAt: 'desc' }
   }).catch(() => []);
 
-  // Server Action: Delete a client tenant and clean up users/accounts
-  async function deleteClient(formData: FormData) {
-    'use server';
-    const clientId = formData.get('clientId') as string;
-    if (!clientId) return;
-
-    try {
-      await prisma.client.delete({
-        where: { id: clientId },
-      });
-      revalidatePath('/settings');
-    } catch (err) {
-      console.error('Delete client error:', err);
-    }
-  }
-
-  // Server Action: Insert real social account credentials (NO MOCK TOKENS)
-  async function connectRealAccount(formData: FormData) {
+  // 1. ACTION: ADD REAL SOCIAL ACCOUNT
+  async function addSocialAccount(formData: FormData) {
     'use server';
     const platform = formData.get('platform') as string;
     const platformId = formData.get('platformId') as string;
     const accessToken = formData.get('accessToken') as string;
-    const assignedClientId = formData.get('targetClientId') as string || currentClientId;
+    const activeClient = currentClientId || 'master-tenant-id'; 
 
-    if (!platform || !platformId || !assignedClientId) return;
+    if (!platform || !platformId) return;
 
     await prisma.socialAccount.create({
-      data: {
-        platform,
-        platformId, // Saves exact user input
-        clientId: assignedClientId,
-        accessToken: accessToken || null, // Saves exact user input (no fake appended strings)
-      },
+      data: { platform, platformId, clientId: activeClient, accessToken: accessToken || null },
     });
-
     revalidatePath('/settings');
   }
 
-  // Server Action: Delete a connected social account
-  async function removeAccount(formData: FormData) {
+  // 2. ACTION: DELETE SOCIAL ACCOUNT
+  async function deleteAccount(formData: FormData) {
     'use server';
     const accountId = formData.get('accountId') as string;
     if (!accountId) return;
 
-    await prisma.socialAccount.delete({
-      where: { id: accountId },
-    });
-
+    await prisma.socialAccount.delete({ where: { id: accountId } });
     revalidatePath('/settings');
   }
 
-  const linkedAccounts = await prisma.socialAccount.findMany({
-    where: isClient && currentClientId ? { clientId: currentClientId } : {},
-    include: { client: true }
-  }).catch(() => []);
+  // 3. ACTION: SAVE AI MCP API SETTINGS (Console logs for now until you make an AI DB model)
+  async function saveAiMcpSettings(formData: FormData) {
+    'use server';
+    const endpoint = formData.get('endpoint');
+    const apiKey = formData.get('apiKey');
+    console.log("AI MCP Saved:", { endpoint, apiKey });
+    // Future: prisma.systemSettings.create(...)
+    revalidatePath('/settings');
+  }
+
+  // 4. ACTION: CREATE USER (USERNAME ONLY) & ASSIGN FEATURES
+  async function provisionNewUser(formData: FormData) {
+    'use server';
+    const username = formData.get('username') as string;
+    const password = formData.get('password') as string;
+    const features = formData.getAll('features') as string[];
+
+    if (!username || !password) return;
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Creates the Workspace/Tenant with specific features
+    const newClient = await prisma.client.create({
+      data: {
+        name: `${username}'s Workspace`,
+        enabledFeatures: features.length > 0 ? features : ['dashboard'],
+      },
+    });
+
+    // Creates the user linked to that workspace using ONLY username
+    await prisma.user.create({
+      data: {
+        username: username,
+        password: hashedPassword,
+        role: 'client',
+        clientId: newClient.id,
+      },
+    });
+    revalidatePath('/settings');
+  }
 
   return (
-    <div className="p-8 bg-slate-50 flex-1 h-full overflow-y-auto">
-      <h1 className="text-3xl font-bold text-slate-800 mb-8">Settings & Integrations</h1>
-
-      <div className="max-w-5xl space-y-8">
+    <div className="p-8 bg-[#f8fafc] flex-1 h-full overflow-y-auto">
+      <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* Real Account Connection Form */}
-        <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-800 mb-2">Connect Real Social Account</h2>
-          <p className="text-sm text-slate-500 mb-6">Input live business handles and access tokens for your active tenant.</p>
+        <div>
+          <h1 className="text-2xl font-bold text-[#1e293b]">Settings & Integrations</h1>
+          <p className="text-sm text-slate-500 mt-1">Configure AI MCP Engine, social messaging channels, and manage users</p>
+        </div>
 
-          <form action={connectRealAccount} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              {!isClient && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Target Client</label>
-                  <select name="targetClientId" required className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500">
-                    <option value="">Select client...</option>
-                    {allClients.map((c: any) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+        {/* --- STATUS GRID --- */}
+        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+            <span className="w-2 h-2 rounded-full bg-orange-500"></span> Connection Status
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 gap-3">
+            <StatusCard name="AI MCP Engine" status="Active" icon="🤖" active={true} />
+            <StatusCard name={`WhatsApp ${getCount('whatsapp') > 0 ? `(${getCount('whatsapp')})` : ''}`} status={isConnected('whatsapp') ? "Connected" : "Not Connected"} icon="💬" active={isConnected('whatsapp')} />
+            <StatusCard name={`Instagram ${getCount('instagram') > 0 ? `(${getCount('instagram')})` : ''}`} status={isConnected('instagram') ? "Connected" : "Not Connected"} icon="📸" active={isConnected('instagram')} />
+            <StatusCard name={`TikTok ${getCount('tiktok') > 0 ? `(${getCount('tiktok')})` : ''}`} status={isConnected('tiktok') ? "Connected" : "Not Connected"} icon="🎵" active={isConnected('tiktok')} />
+            <StatusCard name={`Snapchat ${getCount('snapchat') > 0 ? `(${getCount('snapchat')})` : ''}`} status={isConnected('snapchat') ? "Connected" : "Not Connected"} icon="👻" active={isConnected('snapchat')} />
+            <StatusCard name={`Facebook ${getCount('facebook') > 0 ? `(${getCount('facebook')})` : ''}`} status={isConnected('facebook') ? "Connected" : "Not Connected"} icon="📘" active={isConnected('facebook')} />
+            <StatusCard name={`X (Twitter) ${getCount('x') > 0 ? `(${getCount('x')})` : ''}`} status={isConnected('x') ? "Connected" : "Not Connected"} icon="𝕏" active={isConnected('x')} />
+          </div>
+        </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Platform</label>
-                <select name="platform" required className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500">
-                  <option value="">Select platform...</option>
-                  <option value="whatsapp">WhatsApp Business</option>
-                  <option value="instagram">Instagram</option>
-                  <option value="tiktok">TikTok</option>
-                  <option value="x">X (Twitter)</option>
-                  <option value="facebook">Facebook</option>
-                  <option value="snapchat">Snapchat</option>
-                  <option value="google-reviews">Google Reviews</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Account Handle / ID</label>
-                <input type="text" name="platformId" placeholder="e.g. @brand_handle or ID" required className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Access Token (Optional)</label>
-                <input type="text" name="accessToken" placeholder="Live API token..." className="w-full p-3 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
-              </div>
+        {/* --- AI MCP API ENGINE --- */}
+        <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm">
+          <h2 className="text-sm font-bold text-blue-800 flex items-center gap-2 mb-4">🤖 AI Model Context Protocol (MCP) Copilot API</h2>
+          <form action={saveAiMcpSettings} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">AI Model Endpoint</label>
+              <input type="text" name="endpoint" defaultValue="https://api.openai.com/v1/chat/completions" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-blue-500" />
             </div>
-
-            <button type="submit" className="bg-pink-600 hover:bg-pink-700 text-white font-bold px-8 py-3 rounded-lg text-sm transition cursor-pointer shadow">
-              + Add Live Account
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">API Key / Secret</label>
+              <input type="password" name="apiKey" placeholder="sk-proj-..." className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-blue-500" />
+            </div>
+            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-6 py-2.5 rounded-md transition shadow-sm h-[42px] cursor-pointer">
+              Connect AI API
             </button>
           </form>
+        </div>
 
-          {/* Connected Accounts List */}
-          {linkedAccounts.length > 0 && (
-            <div className="mt-8 border-t border-gray-100 pt-6">
-              <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wide">Connected Accounts</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {linkedAccounts.map((acc: any) => (
-                  <div key={acc.id} className="p-4 border border-gray-200 rounded-lg flex flex-col justify-between bg-slate-50">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="font-bold text-[10px] bg-white border border-gray-200 px-2 py-1 rounded text-slate-600 uppercase tracking-wider">{acc.platform}</span>
-                      <form action={removeAccount}>
-                        <input type="hidden" name="accountId" value={acc.id} />
-                        <button type="submit" className="text-red-500 hover:text-red-700 text-xs font-bold cursor-pointer transition">Remove</button>
-                      </form>
+        {/* --- SOCIAL CHANNELS WIRING --- */}
+        <div className="bg-white p-6 rounded-xl border border-pink-300 shadow-sm">
+          <h2 className="text-sm font-bold text-pink-600 flex items-center gap-2 mb-4">📱 Connected Social & Messaging Accounts</h2>
+          
+          <div className="space-y-4">
+            {linkedAccounts.length > 0 && (
+              <div className="space-y-2 mb-6">
+                {linkedAccounts.map((acc) => (
+                  <div key={acc.id} className="flex items-center gap-3 bg-gray-50 p-2 rounded-md border border-gray-200">
+                    <div className="w-32">
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider bg-white px-2 py-1 border border-gray-200 rounded">{acc.platform}</span>
                     </div>
-                    <div>
-                      <p className="text-sm text-slate-800 font-bold break-all">{acc.platformId}</p>
-                      {acc.accessToken && (
-                        <p className="text-[10px] text-slate-400 mt-1 truncate">Token saved</p>
-                      )}
-                      {!isClient && acc.client && (
-                        <p className="text-xs text-slate-500 mt-1">Client: {acc.client.name}</p>
-                      )}
-                    </div>
+                    <input type="text" disabled value={acc.platformId} className="flex-1 p-2 border border-gray-200 rounded text-sm bg-white text-slate-600 cursor-not-allowed" />
+                    <input type="text" disabled value={acc.accessToken || 'Token Saved'} className="flex-1 p-2 border border-gray-200 rounded text-sm bg-white text-slate-600 cursor-not-allowed hidden md:block" />
+                    <form action={deleteAccount}>
+                      <input type="hidden" name="accountId" value={acc.id} />
+                      <button type="submit" className="p-2 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Remove Account">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                      </button>
+                    </form>
                   </div>
                 ))}
               </div>
+            )}
+
+            <div className="pt-4 border-t border-gray-100">
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Add New Channel Integration</h3>
+              <form action={addSocialAccount} className="flex flex-col sm:flex-row items-center gap-3">
+                <select name="platform" required className="w-full sm:w-48 p-2.5 border border-pink-200 rounded-md text-sm bg-white focus:outline-pink-500">
+                  <option value="">Select Platform...</option>
+                  <option value="whatsapp">WhatsApp Business</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="snapchat">Snapchat</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="x">X (Twitter)</option>
+                </select>
+                <input type="text" name="platformId" required placeholder="Account Handle / ID" className="w-full sm:flex-1 p-2.5 border border-pink-200 rounded-md text-sm focus:outline-pink-500" />
+                <input type="text" name="accessToken" placeholder="Live Access Token (Optional)" className="w-full sm:flex-1 p-2.5 border border-pink-200 rounded-md text-sm focus:outline-pink-500" />
+                <button type="submit" className="w-full sm:w-auto bg-[#d81b60] hover:bg-[#ad1457] text-white text-xs font-bold px-6 py-3 rounded-md transition cursor-pointer shadow-sm">
+                  + Add Live Account
+                </button>
+              </form>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Client Provisioning */}
+        {/* --- USER CREATION & FEATURE PROVISIONING --- */}
         {!isClient && (
-          <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-800 mb-2">Provision New Client App & Channels</h2>
-            <p className="text-sm text-slate-500 mb-6">Create a user account, assign tool features, and provision platform access.</p>
-
-            <form action={createNewClientCopy} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-800 mb-2">Create User & Assign Features</h2>
+            <p className="text-xs text-slate-500 mb-6">Provision a new user account (using a username, no email required) and select their platform capabilities.</p>
+            
+            <form action={provisionNewUser} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
-                  <input type="text" name="clientName" required placeholder="e.g. Acme Corp" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Username</label>
+                  <input type="text" name="username" required placeholder="user_john" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Admin Email (Login)</label>
-                  <input type="email" name="adminEmail" required placeholder="admin@acme.com" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                  <input type="password" name="adminPassword" required placeholder="••••••••" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Password</label>
+                  <input type="password" name="password" required placeholder="••••••••" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" />
                 </div>
               </div>
 
-              {/* Tool Features */}
               <div className="border-t border-gray-100 pt-4">
-                <label className="block text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider">Assign Tool Features</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Assign Access Features</label>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   {['dashboard', 'ticketing', 'post', 'activity', 'report'].map((feat) => (
-                    <label key={feat} className="flex items-center gap-2 text-sm text-slate-700 bg-gray-50 p-3 rounded-lg border border-gray-200 cursor-pointer">
-                      <input type="checkbox" name="features" value={feat} defaultChecked className="w-4 h-4 accent-orange-500" />
+                    <label key={feat} className="flex items-center gap-2 text-sm text-slate-700 bg-gray-50 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition">
+                      <input type="checkbox" name="features" value={feat} className="w-4 h-4 accent-orange-500 cursor-pointer" />
                       <span className="font-medium capitalize">{feat}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
-              {/* Social Channels */}
-              <div className="border-t border-gray-100 pt-4">
-                <label className="block text-sm font-bold text-slate-800 mb-3 uppercase tracking-wider">Assign Social Channels</label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {['whatsapp', 'instagram', 'tiktok', 'snapchat', 'facebook', 'x'].map((ch) => (
-                    <label key={ch} className="flex items-center gap-2 text-sm text-slate-700 bg-gray-50 p-3 rounded-lg border border-gray-200 cursor-pointer">
-                      <input type="checkbox" name="platforms" value={ch} defaultChecked className="w-4 h-4 accent-orange-500" />
-                      <span className="font-medium capitalize">{ch}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white px-6 py-3.5 rounded-md font-bold transition-colors mt-4 cursor-pointer shadow">
-                Create User & Provision Platform Copy
+              <button type="submit" className="bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold px-8 py-3 rounded-lg transition shadow-md cursor-pointer">
+                Create User
               </button>
             </form>
           </div>
         )}
 
-        {/* Client List with Delete Tenant Action */}
-        {!isClient && allClients.length > 0 && (
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h2 className="text-xl font-semibold text-slate-800 mb-4">Active Clients & Tenant Management</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="p-3 font-medium text-slate-800">Client</th>
-                    <th className="p-3 font-medium text-slate-800">Admin Login</th>
-                    <th className="p-3 font-medium text-slate-800">Features</th>
-                    <th className="p-3 font-medium text-slate-800 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {allClients.map((client: any) => (
-                    <tr key={client.id} className="hover:bg-gray-50/50">
-                      <td className="p-3 font-medium text-slate-800">{client.name}</td>
-                      <td className="p-3">{client.users?.[0]?.email || 'N/A'}</td>
-                      <td className="p-3">
-                        <div className="flex flex-wrap gap-1">
-                          {client.enabledFeatures?.map((f: string) => (
-                            <span key={f} className="bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">{f}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-3 text-right">
-                        <form action={deleteClient} className="inline">
-                          <input type="hidden" name="clientId" value={client.id} />
-                          <button 
-                            type="submit" 
-                            className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold px-3 py-1.5 rounded-lg transition cursor-pointer"
-                          >
-                            Delete Tenant
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
       </div>
+    </div>
+  );
+}
+
+// Reusable UI Components
+function StatusCard({ name, status, icon, active = false }: { name: string, status: string, icon: string, active?: boolean }) {
+  return (
+    <div className={`p-3 border rounded-xl flex flex-col items-center justify-center text-center h-24 ${active ? 'border-green-300 bg-green-50/30' : 'border-gray-200 bg-gray-50/50'}`}>
+      <span className="text-xl mb-1">{icon}</span>
+      <span className="text-[10px] font-bold text-slate-700 uppercase mb-0.5 leading-tight">{name}</span>
+      <span className={`text-[9px] ${active ? 'text-green-600 font-bold' : 'text-slate-400'}`}>{status}</span>
     </div>
   );
 }

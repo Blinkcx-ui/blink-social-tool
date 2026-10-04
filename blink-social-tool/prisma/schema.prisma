@@ -32,7 +32,7 @@ model Client {
 
 model User {
   id        String   @id @default(cuid())
-  email     String   @unique
+  username  String   @unique  // UPDATED: Changed from email to username to match the new login flow
   password  String
   role      String   @default("client") // "admin" or "client"[cite: 7]
   clientId  String?  // Optional so master admin doesn't require a client ID[cite: 7]
