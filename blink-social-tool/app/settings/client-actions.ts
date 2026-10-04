@@ -11,17 +11,17 @@ export async function createNewClientCopy(formData: FormData) {
   const logoChar = (formData.get('logoChar') as string) || 'A';
   const logoUrl = formData.get('logoUrl') as string;
 
-  // Selected features (dashboard, ticketing, post, activity, report)
+  // Selected tool features (dashboard, ticketing, post, activity, report)
   const features = formData.getAll('features') as string[];
   
-  // Selected platforms (whatsapp, instagram, tiktok, snapchat, facebook, x)
+  // Selected social platforms (whatsapp, instagram, tiktok, snapchat, facebook, x)
   const platforms = formData.getAll('platforms') as string[];
 
   if (!clientName || !adminEmail || !adminPassword) {
     throw new Error('Missing required fields for client provisioning.');
   }
 
-  // Hash the admin password securely
+  // Securely hash the admin password
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
   try {

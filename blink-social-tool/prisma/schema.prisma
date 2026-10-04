@@ -16,15 +16,15 @@ model Client {
 
   enableReports     Boolean         @default(true)
   enableAiReplies   Boolean         @default(true)
-  enabledFeatures   String[]        // e.g., ['dashboard', 'ticketing', 'post', 'activity', 'report']
-  allowedPlatforms  String[]        // e.g., ['whatsapp', 'instagram', 'tiktok', 'snapchat', 'facebook', 'x']
+  enabledFeatures   String[]        // e.g., ['dashboard', 'ticketing', 'post', 'activity', 'report'][cite: 7]
+  allowedPlatforms  String[]        // e.g., ['whatsapp', 'instagram', 'tiktok', 'snapchat', 'facebook', 'x'][cite: 7]
 
   users             User[]
   socialAccounts    SocialAccount[]
-  posts             Post[]          // Linked posts for publishing
-  reviews           Review[]        // Linked Google reviews
-  notifications     Notification[]  // Activity alerts and notifications
-  tickets           Ticket[]        // Linked support tickets
+  posts             Post[]          // Linked posts for publishing[cite: 7]
+  reviews           Review[]        // Linked Google reviews[cite: 7]
+  notifications     Notification[]  // Activity alerts and notifications[cite: 7]
+  tickets           Ticket[]        // Linked support tickets[cite: 7]
   
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt @default(now())
@@ -34,8 +34,8 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   password  String
-  role      String   @default("client") // "admin" or "client"
-  clientId  String?  // Optional so master admin doesn't require a client ID
+  role      String   @default("client") // "admin" or "client"[cite: 7]
+  clientId  String?  // Optional so master admin doesn't require a client ID[cite: 7]
   client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
 
@@ -44,11 +44,11 @@ model SocialAccount {
   id            String         @id @default(uuid())
   clientId      String
   client        Client         @relation(fields: [clientId], references: [id])
-  platform      String         // e.g., "whatsapp", "instagram", "tiktok", "snapchat", "facebook", "x"
-  platformId    String         // The ID given by the social platform
-  accessToken   String?        // OAuth token
+  platform      String         // e.g., "whatsapp", "instagram", "tiktok", "snapchat", "facebook", "x"[cite: 7]
+  platformId    String         // The ID given by the social platform[cite: 7]
+  accessToken   String?        // OAuth token[cite: 7]
   conversations Conversation[]
-  notifications Notification[] // Notifications for this social account
+  notifications Notification[] // Notifications for this social account[cite: 7]
 }
 
 // 3. The Unified Inbox Threads
@@ -58,9 +58,9 @@ model Conversation {
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
   customerName    String
   customerHandle  String
-  aiStatus        String        @default("active") // "active" or "paused" for human handoff
+  aiStatus        String        @default("active") // "active" or "paused" for human handoff[cite: 7]
   messages        Message[]
-  tickets         Ticket[]      // Tickets generated from this conversation
+  tickets         Ticket[]      // Tickets generated from this conversation[cite: 7]
   updatedAt       DateTime      @updatedAt
 }
 
@@ -70,7 +70,7 @@ model Message {
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   content        String
-  senderType     String       // "customer", "ai", or "human"
+  senderType     String       // "customer", "ai", or "human"[cite: 7]
   createdAt      DateTime     @default(now())
 }
 
@@ -79,10 +79,10 @@ model Post {
   id          String   @id @default(uuid())
   clientId    String
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  platform    String   // e.g., "instagram", "facebook", "twitter"
-  content     String   // Caption or text content
-  mediaUrl    String?  // Attached image or video link
-  status      String   @default("published") // "published", "scheduled", "failed"
+  platform    String   // e.g., "instagram", "facebook", "twitter"[cite: 7]
+  content     String   // Caption or text content[cite: 7]
+  mediaUrl    String?  // Attached image or video link[cite: 7]
+  status      String   @default("published") // "published", "scheduled", "failed"[cite: 7]
   createdAt   DateTime @default(now())
 }
 
@@ -91,11 +91,11 @@ model Review {
   id           String   @id @default(uuid())
   clientId     String
   client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  reviewId     String   @unique // Unique ID provided by Google Business Profile
+  reviewId     String   @unique // Unique ID provided by Google Business Profile[cite: 7]
   reviewerName String
-  rating       Int      // 1 to 5 stars
-  comment      String?  // Customer review comment text
-  replyComment String?  // Business owner reply text
+  rating       Int      // 1 to 5 stars[cite: 7]
+  comment      String?  // Customer review comment text[cite: 7]
+  replyComment String?  // Business owner reply text[cite: 7]
   createTime   DateTime
   updatedAt    DateTime @updatedAt
 }
@@ -109,9 +109,9 @@ model Notification {
   socialAccountId String?
   socialAccount   SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
   
-  type            String         // e.g., "COMMENT", "FOLLOW", "MENTION", "LIKE", "REVIEW", "TAG"
-  content         String         // e.g., "@johndoe commented on your latest post"
-  targetUrl       String?        // Direct deep-link to the comment, review, or profile
+  type            String         // e.g., "COMMENT", "FOLLOW", "MENTION", "LIKE", "REVIEW", "TAG"[cite: 7]
+  content         String         // e.g., "@johndoe commented on your latest post"[cite: 7]
+  targetUrl       String?        // Direct deep-link to the comment, review, or profile[cite: 7]
   isRead          Boolean        @default(false)
   
   createdAt       DateTime       @default(now())
@@ -129,8 +129,8 @@ model Ticket {
   customerName   String
   contactDetails String
   city           String?
-  source         String        // Auto-assigned (e.g., "whatsapp", "instagram")
-  category       String        // "Inquiry" or "Complaint"
+  source         String        // Auto-assigned (e.g., "whatsapp", "instagram")[cite: 7]
+  category       String        // "Inquiry" or "Complaint"[cite: 7]
   details        String
   
   createdAt      DateTime      @default(now())
