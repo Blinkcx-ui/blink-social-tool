@@ -99,7 +99,7 @@ model Review {
   updatedAt    DateTime @updatedAt
 }
 
-// 7. Social Notifications
+// 7. Social Notifications (Updated with targetUrl for direct deep-linking)
 model Notification {
   id              String         @id @default(uuid())
   clientId        String
@@ -108,8 +108,9 @@ model Notification {
   socialAccountId String?
   socialAccount   SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
   
-  type            String         // e.g., "COMMENT", "FOLLOW", "MENTION", "LIKE"
+  type            String         // e.g., "COMMENT", "FOLLOW", "MENTION", "LIKE", "REVIEW", "TAG"
   content         String         // e.g., "@johndoe commented on your latest post"
+  targetUrl       String?        // Direct deep-link to the comment, review, or profile
   isRead          Boolean        @default(false)
   
   createdAt       DateTime       @default(now())
