@@ -16,14 +16,15 @@ model Client {
 
   enableReports     Boolean         @default(true)
   enableAiReplies   Boolean         @default(true)
-  allowedPlatforms  String          @default("instagram,whatsapp")
+  enabledFeatures   String[]        // e.g., ['dashboard', 'ticketing', 'post', 'activity', 'report']
+  allowedPlatforms  String[]        // e.g., ['whatsapp', 'instagram', 'tiktok', 'snapchat', 'facebook', 'x']
 
   users             User[]
   socialAccounts    SocialAccount[]
   posts             Post[]          // Linked posts for publishing
   reviews           Review[]        // Linked Google reviews
   notifications     Notification[]  // Activity alerts and notifications
-  tickets           Ticket[]        // NEW: Linked support tickets
+  tickets           Ticket[]        // Linked support tickets
   
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt @default(now())
@@ -43,7 +44,7 @@ model SocialAccount {
   id            String         @id @default(uuid())
   clientId      String
   client        Client         @relation(fields: [clientId], references: [id])
-  platform      String         // e.g., "instagram", "tiktok", "whatsapp"
+  platform      String         // e.g., "whatsapp", "instagram", "tiktok", "snapchat", "facebook", "x"
   platformId    String         // The ID given by the social platform
   accessToken   String?        // OAuth token
   conversations Conversation[]
@@ -59,7 +60,7 @@ model Conversation {
   customerHandle  String
   aiStatus        String        @default("active") // "active" or "paused" for human handoff
   messages        Message[]
-  tickets         Ticket[]      // NEW: Tickets generated from this conversation
+  tickets         Ticket[]      // Tickets generated from this conversation
   updatedAt       DateTime      @updatedAt
 }
 
@@ -116,7 +117,7 @@ model Notification {
   createdAt       DateTime       @default(now())
 }
 
-// 8. NEW: Support Tickets
+// 8. Support Tickets
 model Ticket {
   id             String        @id @default(uuid())
   clientId       String
