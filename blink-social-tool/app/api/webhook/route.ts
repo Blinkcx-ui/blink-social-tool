@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+// 1. Handle Webhook Verification (Required by Meta / Instagram / WhatsApp setup)
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const mode = url.searchParams.get('hub.mode');
@@ -18,25 +19,27 @@ export async function GET(req: Request) {
   return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
 }
 
+// 2. Handle Real-Time Incoming Messages and Events
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("Incoming Meta Webhook:", JSON.stringify(body, null, 2));
+    console.log("Incoming Webhook Payload:", JSON.stringify(body, null, 2));
 
     let platformId = null;
-    let senderName = 'Instagram User';
+    let senderName = 'Customer';
     let messageText = null;
 
     const entry = body.entry?.[0];
 
-    // 1. Check for Instagram Messaging structure (entry[0].messaging)
+    // Check for Instagram / Messenger messaging array structure
     if (entry?.messaging?.[0]) {
       const messagingEvent = entry.messaging[0];
       platformId = messagingEvent.recipient?.id || entry.id;
-      senderName = messagingEvent.sender?.id ? `User_${messagingEvent.sender.id.slice(-4)}` : 'Instagram User';
+      const senderPsid = messagingEvent.sender?.id;
+      senderName = senderPsid ? `User_${senderPsid}` : 'Customer';
       messageText = messagingEvent.message?.text || messagingEvent.postback?.title || 'Media / Attachment';
     } 
-    // 2. Check for WhatsApp / Graph API structure (entry[0].changes)
+    // Check for WhatsApp / Graph API changes structure
     else if (entry?.changes?.[0]?.value) {
       const change = entry.changes[0].value;
       platformId = change.metadata?.phone_number_id || change.metadata?.page_id || entry?.id;
@@ -46,7 +49,7 @@ export async function POST(req: Request) {
         messageText = messageObj.text?.body || messageObj.type || 'Media message';
       }
     } 
-    // 3. Fallback for manual test payloads
+    // Fallback for direct JSON test payloads
     else {
       platformId = body.platformId;
       senderName = body.senderName || 'Test Customer';
@@ -54,20 +57,16 @@ export async function POST(req: Request) {
     }
 
     if (!platformId || !messageText) {
-      return NextResponse.json({ success: true, info: 'Received event, no message text found' });
+      return NextResponse.json({ success: true, info: 'Received event, but no message text found' });
     }
 
     // Find the linked social account in database
     let socialAccount = await prisma.socialAccount.findFirst({
       where: { platformId: String(platformId) },
-    });
+    }) || await prisma.socialAccount.findFirst();
 
     if (!socialAccount) {
-      socialAccount = await prisma.socialAccount.findFirst();
-    }
-
-    if (!socialAccount) {
-      return NextResponse.json({ error: 'Social account not found in DB' }, { status: 404 });
+      return NextResponse.json({ error: 'Social account not found in database' }, { status: 404 });
     }
 
     // Find or create conversation thread
@@ -109,9 +108,9 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, message: 'Message saved successfully' });
+    return NextResponse.json({ success: true, message: 'Message logged successfully' });
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error('Webhook processing error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
