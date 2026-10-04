@@ -30,7 +30,6 @@ export default function Sidebar() {
         <Link href="/inbox" className="block p-3 rounded-md text-gray-600 hover:bg-brand-card hover:text-brand-orange transition-colors">
           Unified Inbox
         </Link>
-        {/* NEW: Support Tickets Link */}
         <Link href="/tickets" className="block p-3 rounded-md text-gray-600 hover:bg-brand-card hover:text-brand-orange transition-colors">
           Support Tickets
         </Link>
@@ -43,7 +42,7 @@ export default function Sidebar() {
         <Link href="/settings" className="block p-3 rounded-md text-gray-600 hover:bg-brand-card hover:text-brand-orange transition-colors">
           Settings
         </Link>
-        <Link href="/notifications" className="block p-3 rounded-md text-gray-600 hover:bg-brand-card hover:text-brand-orange transition-colors">
+        <Link href="/Activity" className="block p-3 rounded-md text-gray-600 hover:bg-brand-card hover:text-brand-orange transition-colors">
           Activity Alerts
         </Link>
       </nav>
