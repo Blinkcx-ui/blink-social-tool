@@ -25,7 +25,7 @@ export default function RootLayout({
           </div>
 
           {/* Full Navigation Menu */}
-          <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+          <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Main Menu</p>
             
             <Link href="/" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
@@ -43,6 +43,11 @@ export default function RootLayout({
               <span>Tickets</span>
             </Link>
 
+            <Link href="/posts" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
+              <span>📝</span>
+              <span>Posts</span>
+            </Link>
+
             <Link href="/reports" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
               <span>📈</span>
               <span>Reports</span>
@@ -53,7 +58,7 @@ export default function RootLayout({
               <span>Activity Log</span>
             </Link>
 
-            <div className="pt-6">
+            <div className="pt-4">
               <p className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">System</p>
               <Link href="/settings" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-slate-800 hover:text-white transition-colors">
                 <span>⚙️</span>
