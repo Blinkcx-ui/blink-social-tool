@@ -30,7 +30,7 @@ export async function createNewClientCopy(formData: FormData) {
       },
     });
 
-    // 2. Create the Real Login User for this Client
+    // 2. Create the Real Admin User for this Client
     await prisma.user.create({
       data: {
         email: adminEmail,
@@ -40,6 +40,9 @@ export async function createNewClientCopy(formData: FormData) {
       },
     });
 
+    // NOTE: Removed mock social account creation loop entirely. 
+    // Social accounts will now only be added via real connections or OAuth.
+
     revalidatePath('/settings');
   } catch (error) {
     console.error('Error provisioning client:', error);
@@ -47,7 +50,6 @@ export async function createNewClientCopy(formData: FormData) {
   }
 }
 
-// 3. Action to Delete a Client and all their users/accounts
 export async function deleteClient(formData: FormData) {
   'use server';
   const clientId = formData.get('clientId') as string;
