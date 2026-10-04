@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// 1. Handle Webhook Verification (Meta verification)
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const mode = url.searchParams.get('hub.mode');
@@ -19,52 +18,56 @@ export async function GET(req: Request) {
   return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
 }
 
-// 2. Handle Incoming Messages from Meta, WhatsApp, Instagram, or Custom payloads
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("Incoming Webhook Payload:", JSON.stringify(body, null, 2));
+    console.log("Incoming Meta Webhook:", JSON.stringify(body, null, 2));
 
-    // Support standard Meta/WhatsApp webhook structure as well as direct custom payloads
     let platformId = null;
-    let senderName = 'Customer';
+    let senderName = 'Instagram User';
     let messageText = null;
 
-    // Check if it's a Meta/WhatsApp standard graph API payload
     const entry = body.entry?.[0];
-    const change = entry?.changes?.[0]?.value;
 
-    if (change) {
+    // 1. Check for Instagram Messaging structure (entry[0].messaging)
+    if (entry?.messaging?.[0]) {
+      const messagingEvent = entry.messaging[0];
+      platformId = messagingEvent.recipient?.id || entry.id;
+      senderName = messagingEvent.sender?.id ? `User_${messagingEvent.sender.id.slice(-4)}` : 'Instagram User';
+      messageText = messagingEvent.message?.text || messagingEvent.postback?.title || 'Media / Attachment';
+    } 
+    // 2. Check for WhatsApp / Graph API structure (entry[0].changes)
+    else if (entry?.changes?.[0]?.value) {
+      const change = entry.changes[0].value;
       platformId = change.metadata?.phone_number_id || change.metadata?.page_id || entry?.id;
       const messageObj = change.messages?.[0];
       if (messageObj) {
-        senderName = messageObj.from || 'WhatsApp User';
-        messageText = messageObj.text?.body || messageObj.type || 'Media / Attachment';
+        senderName = messageObj.from || 'Customer';
+        messageText = messageObj.text?.body || messageObj.type || 'Media message';
       }
-    } else {
-      // Fallback for direct JSON test payloads
+    } 
+    // 3. Fallback for manual test payloads
+    else {
       platformId = body.platformId;
-      senderName = body.senderName || 'Test User';
+      senderName = body.senderName || 'Test Customer';
       messageText = body.messageText || body.content;
     }
 
     if (!platformId || !messageText) {
-      // Return 200 so Meta doesn't retry failed webhook pings
-      return NextResponse.json({ success: true, info: 'Event received but no message text found' });
+      return NextResponse.json({ success: true, info: 'Received event, no message text found' });
     }
 
-    // Find the linked social account in your database
+    // Find the linked social account in database
     let socialAccount = await prisma.socialAccount.findFirst({
       where: { platformId: String(platformId) },
     });
 
-    // Fallback: If account wasn't precisely matched by ID, grab the first active account so testing never fails
     if (!socialAccount) {
       socialAccount = await prisma.socialAccount.findFirst();
     }
 
     if (!socialAccount) {
-      return NextResponse.json({ error: 'No social account found in database to attach message to' }, { status: 404 });
+      return NextResponse.json({ error: 'Social account not found in DB' }, { status: 404 });
     }
 
     // Find or create conversation thread
@@ -80,7 +83,7 @@ export async function POST(req: Request) {
         data: {
           socialAccountId: socialAccount.id,
           customerName: senderName,
-          customerHandle: `@user_${senderName.slice(-4)}`,
+          customerHandle: `@${senderName.toLowerCase()}`,
           aiStatus: 'active',
         },
       });
@@ -106,9 +109,9 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, message: 'Message successfully stored in database' });
+    return NextResponse.json({ success: true, message: 'Message saved successfully' });
   } catch (error) {
-    console.error('Webhook processing error:', error);
+    console.error('Webhook error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
