@@ -21,37 +21,45 @@ export default async function SettingsPage() {
   }
 
   const currentClientId = dbUser.clientId;
+  const isSuperAdmin = userId === 'super-admin-blink' || userId === 'demo-master-id';
   const isClient = dbUser.role === 'client';
 
   // FETCH REAL ACCOUNTS
   const linkedAccounts = await prisma.socialAccount.findMany({
-    where: currentClientId ? { clientId: currentClientId } : {},
+    where: !isSuperAdmin && currentClientId ? { clientId: currentClientId } : {},
     include: { client: true }
   }).catch(() => []);
 
   const isConnected = (platform: string) => linkedAccounts.some(acc => acc.platform === platform);
   const getCount = (platform: string) => linkedAccounts.filter(acc => acc.platform === platform).length;
 
-  // FETCH ALL USERS/TENANTS (For Admin View)
-  const allClients = await prisma.client.findMany({
-    include: { users: true },
-    orderBy: { createdAt: 'desc' }
-  }).catch(() => []);
-
-  // 1. ACTION: ADD REAL SOCIAL ACCOUNT
+  // 1. ACTION: ADD REAL SOCIAL ACCOUNT (Safe for Super Admin)
   async function addSocialAccount(formData: FormData) {
     'use server';
     const platform = formData.get('platform') as string;
     const platformId = formData.get('platformId') as string;
     const accessToken = formData.get('accessToken') as string;
-    const activeClient = currentClientId || 'master-tenant-id'; 
 
     if (!platform || !platformId) return;
 
+    let targetClientId = currentClientId;
+
+    // If logged in as super-admin without a client, get or create a default master client workspace
+    if (!targetClientId) {
+      let masterClient = await prisma.client.findFirst({ where: { name: 'Master Workspace' } });
+      if (!masterClient) {
+        masterClient = await prisma.client.create({
+          data: { name: 'Master Workspace', enabledFeatures: ['dashboard', 'ticketing', 'post', 'activity', 'report'] }
+        });
+      }
+      targetClientId = masterClient.id;
+    }
+
     await prisma.socialAccount.create({
-      data: { platform, platformId, clientId: activeClient, accessToken: accessToken || null },
+      data: { platform, platformId, clientId: targetClientId, accessToken: accessToken || null },
     });
     revalidatePath('/settings');
+    revalidatePath('/');
   }
 
   // 2. ACTION: DELETE SOCIAL ACCOUNT
@@ -62,15 +70,15 @@ export default async function SettingsPage() {
 
     await prisma.socialAccount.delete({ where: { id: accountId } });
     revalidatePath('/settings');
+    revalidatePath('/');
   }
 
-  // 3. ACTION: SAVE AI MCP API SETTINGS (Console logs for now until you make an AI DB model)
+  // 3. ACTION: SAVE AI MCP API SETTINGS
   async function saveAiMcpSettings(formData: FormData) {
     'use server';
     const endpoint = formData.get('endpoint');
     const apiKey = formData.get('apiKey');
     console.log("AI MCP Saved:", { endpoint, apiKey });
-    // Future: prisma.systemSettings.create(...)
     revalidatePath('/settings');
   }
 
@@ -84,7 +92,6 @@ export default async function SettingsPage() {
     if (!username || !password) return;
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Creates the Workspace/Tenant with specific features
     const newClient = await prisma.client.create({
       data: {
         name: `${username}'s Workspace`,
@@ -92,7 +99,6 @@ export default async function SettingsPage() {
       },
     });
 
-    // Creates the user linked to that workspace using ONLY username
     await prisma.user.create({
       data: {
         username: username,
@@ -160,7 +166,7 @@ export default async function SettingsPage() {
                       <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider bg-white px-2 py-1 border border-gray-200 rounded">{acc.platform}</span>
                     </div>
                     <input type="text" disabled value={acc.platformId} className="flex-1 p-2 border border-gray-200 rounded text-sm bg-white text-slate-600 cursor-not-allowed" />
-                    <input type="text" disabled value={acc.accessToken || 'Token Saved'} className="flex-1 p-2 border border-gray-200 rounded text-sm bg-white text-slate-600 cursor-not-allowed hidden md:block" />
+                    <input type="text" disabled value={acc.accessToken ? 'Token Saved' : 'No Token'} className="flex-1 p-2 border border-gray-200 rounded text-sm bg-white text-slate-600 cursor-not-allowed hidden md:block" />
                     <form action={deleteAccount}>
                       <input type="hidden" name="accountId" value={acc.id} />
                       <button type="submit" className="p-2 text-slate-400 hover:text-red-500 transition cursor-pointer" title="Remove Account">
@@ -236,7 +242,6 @@ export default async function SettingsPage() {
   );
 }
 
-// Reusable UI Components
 function StatusCard({ name, status, icon, active = false }: { name: string, status: string, icon: string, active?: boolean }) {
   return (
     <div className={`p-3 border rounded-xl flex flex-col items-center justify-center text-center h-24 ${active ? 'border-green-300 bg-green-50/30' : 'border-gray-200 bg-gray-50/50'}`}>
