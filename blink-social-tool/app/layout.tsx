@@ -1,5 +1,6 @@
 import './globals.css';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,13 +14,19 @@ export default function RootLayout({
       <body className="h-screen w-screen bg-slate-50 antialiased overflow-hidden m-0 p-0 flex">
         {/* Permanent Navigation Sidebar */}
         <aside className="w-64 bg-slate-900 border-r border-slate-800 h-screen flex flex-col text-slate-300 shadow-xl select-none">
-          {/* Brand Header */}
-          <div className="p-6 border-b border-slate-800 flex items-center space-x-3">
-            <div className="w-10 h-10 bg-orange-500 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-md">
-              B
+          {/* Brand Header with Company Logo */}
+          <div className="p-5 border-b border-slate-800 flex items-center space-x-3">
+            <div className="w-10 h-10 relative flex items-center justify-center bg-white/5 rounded-xl p-1 border border-white/10">
+              <Image 
+                src="/logo.png" 
+                alt="Blink to Link" 
+                fill 
+                className="object-contain p-1"
+                priority 
+              />
             </div>
-            <div>
-              <h1 className="font-bold text-white text-sm tracking-tight">Blink Social</h1>
+            <div className="overflow-hidden">
+              <h1 className="font-bold text-white text-sm tracking-tight truncate">Blink Social</h1>
               <p className="text-[10px] text-emerald-400 font-semibold uppercase">Super Admin Active</p>
             </div>
           </div>
