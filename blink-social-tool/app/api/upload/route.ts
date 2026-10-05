@@ -1,22 +1,44 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
 
 export async function POST(req: Request) {
   try {
-    const form = await req.formData();
-    const file = form.get('file') as File;
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    // Upload file to Vercel Blob storage
-    const blob = await put(`posts/${file.name}`, file, {
-      access: 'public',
-    });
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
 
-    return NextResponse.json({ url: blob.url });
+    // Ensure the public/uploads directory exists
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+    await mkdir(uploadsDir, { recursive: true });
+
+    // Sanitize filename and add timestamp to prevent overwriting
+    const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    const filePath = path.join(uploadsDir, filename);
+
+    await writeFile(filePath, buffer);
+
+    // Determine media type for the database
+    const mediaType = file.type.startsWith('image/') 
+      ? 'image' 
+      : file.type.startsWith('video/') 
+        ? 'video' 
+        : 'document';
+
+    return NextResponse.json({ 
+      success: true, 
+      url: `/uploads/${filename}`, 
+      type: mediaType, 
+      fileName: file.name 
+    });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('File upload error:', error);
+    return NextResponse.json({ error: error.message || 'Upload failed' }, { status: 500 });
   }
 }

@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import CreateTicketModal from '@/components/CreateTicketModal';
 import ChatInput from './ChatInput';
-import AutoRefresh from './AutoRefresh'; // <-- New import
+import AutoRefresh from './AutoRefresh';
 
 export const revalidate = 0;
 
@@ -31,9 +31,9 @@ export default async function InboxPage({
 
   return (
     <div className="flex h-full relative">
-      <AutoRefresh /> {/* <-- Enables real-time live messages */}
+      <AutoRefresh />
       
-      {/* Conversation List */}
+      {/* Left Sidebar */}
       <div className="w-1/3 bg-brand-card border-r border-brand-border flex flex-col h-full">
         <div className="p-4 border-b border-brand-border flex justify-between items-center bg-brand-light">
           <h2 className="font-semibold text-gray-800">Messages</h2>
@@ -46,7 +46,7 @@ export default async function InboxPage({
           {conversations.map((chat) => {
             const lastMessage = chat.messages[chat.messages.length - 1];
             const isActive = chat.id === activeChatId;
-            const avatar = (chat as any).avatarUrl; 
+            const avatar = chat.avatarUrl;
             
             return (
               <Link 
@@ -70,7 +70,7 @@ export default async function InboxPage({
                       <span className="text-xs text-gray-500 shrink-0 ml-2">Live</span>
                     </div>
                     <p className="text-sm text-gray-600 truncate">
-                      {lastMessage ? lastMessage.content : 'No messages yet'}
+                      {lastMessage ? (lastMessage.mediaUrl ? '📎 Attachment' : lastMessage.content) : 'No messages yet'}
                     </p>
                   </div>
                 </div>
@@ -80,14 +80,14 @@ export default async function InboxPage({
         </div>
       </div>
 
-      {/* Active Chat Window */}
+      {/* Main Chat View */}
       <div className="flex-1 flex flex-col h-full bg-brand-light">
         {activeChat ? (
           <>
             <div className="p-4 border-b border-brand-border bg-brand-card flex justify-between items-center">
               <div className="flex items-center gap-3">
-                {(activeChat as any).avatarUrl ? (
-                   <img src={(activeChat as any).avatarUrl} alt="Profile" className="w-12 h-12 rounded-full object-cover border border-gray-200" />
+                {activeChat.avatarUrl ? (
+                   <img src={activeChat.avatarUrl} alt="Profile" className="w-12 h-12 rounded-full object-cover border border-gray-200" />
                 ) : (
                    <div className="w-12 h-12 rounded-full bg-brand-orange flex items-center justify-center text-white font-bold text-lg">
                      {getInitials(activeChat.customerName)}
@@ -95,9 +95,7 @@ export default async function InboxPage({
                 )}
                 <div>
                   <h3 className="font-semibold text-gray-800">{activeChat.customerName}</h3>
-                  <p className="text-xs text-gray-500">
-                    via {activeChat.socialAccount.platform}
-                  </p>
+                  <p className="text-xs text-gray-500">via {activeChat.socialAccount.platform}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -129,6 +127,17 @@ export default async function InboxPage({
                       ? 'bg-brand-card border border-brand-border rounded-tl-none text-gray-800'
                       : 'bg-brand-orange text-white rounded-tr-none'
                   }`}>
+                    {msg.mediaUrl && (
+                      <div className="mb-2">
+                        {msg.mediaType === 'image' ? (
+                          <img src={msg.mediaUrl} alt="Attachment" className="max-w-xs rounded-md border border-white/20" />
+                        ) : (
+                          <a href={msg.mediaUrl} target="_blank" rel="noreferrer" className="underline font-semibold text-xs flex items-center gap-1">
+                            📎 Download File
+                          </a>
+                        )}
+                      </div>
+                    )}
                     <p className="text-sm">{msg.content}</p>
                     {msg.senderType !== 'customer' && (
                       <p className="text-[10px] text-orange-200 mt-1 text-right">

@@ -3,10 +3,10 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { conversationId, messageText } = await req.json();
+    const { conversationId, messageText, mediaUrl, mediaType } = await req.json();
 
-    if (!conversationId || !messageText) {
-      return NextResponse.json({ error: 'Missing conversationId or messageText' }, { status: 400 });
+    if (!conversationId) {
+      return NextResponse.json({ error: 'Missing conversationId' }, { status: 400 });
     }
 
     const conversation = await prisma.conversation.findUnique({
@@ -15,32 +15,47 @@ export async function POST(req: Request) {
     });
 
     if (!conversation || !conversation.socialAccount?.accessToken) {
-      return NextResponse.json({ error: 'Active session or token missing' }, { status: 400 });
+      return NextResponse.json({ error: 'Active social account or token missing' }, { status: 400 });
     }
 
     const { platform, accessToken } = conversation.socialAccount;
-    
-    // Read the numerical ID we saved in the handle field
-    const recipientId = conversation.customerHandle.replace('@', ''); 
+    const recipientId = conversation.customerHandle.replace('@', '');
 
     if (platform === 'instagram' || platform === 'facebook') {
+      const payload: any = {
+        recipient: { id: recipientId },
+        message: {}
+      };
+
+      if (mediaUrl && mediaType === 'image') {
+        payload.message.attachment = {
+          type: 'image',
+          payload: { url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.blinktolink.com'}${mediaUrl}`, is_reusable: true }
+        };
+      } else {
+        payload.message.text = messageText || 'Attachment';
+      }
+
       const res = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${accessToken}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recipient: { id: recipientId },
-          message: { text: messageText }
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
       if (!res.ok) {
-        return NextResponse.json({ error: data.error?.message || 'Meta API Error' }, { status: 400 });
+        return NextResponse.json({ error: data.error?.message || 'Meta API rejection' }, { status: 400 });
       }
     }
 
     const savedMessage = await prisma.message.create({
-      data: { conversationId, content: messageText, senderType: 'agent' }
+      data: { 
+        conversationId, 
+        content: messageText || 'Sent attachment', 
+        mediaUrl, 
+        mediaType, 
+        senderType: 'agent' 
+      }
     });
 
     await prisma.conversation.update({
@@ -50,6 +65,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, savedMessage });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
