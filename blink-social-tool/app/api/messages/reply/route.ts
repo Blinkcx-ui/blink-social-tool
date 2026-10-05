@@ -15,13 +15,14 @@ export async function POST(req: Request) {
     });
 
     if (!conversation || !conversation.socialAccount?.accessToken) {
-      return NextResponse.json({ error: 'Active session or token missing in database' }, { status: 400 });
+      return NextResponse.json({ error: 'Active session or token missing' }, { status: 400 });
     }
 
     const { platform, accessToken } = conversation.socialAccount;
-    const recipientId = conversation.customerName.replace('User_', '');
+    
+    // Read the numerical ID we saved in the handle field
+    const recipientId = conversation.customerHandle.replace('@', ''); 
 
-    // Send via Meta Graph API if Instagram/Facebook
     if (platform === 'instagram' || platform === 'facebook') {
       const res = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${accessToken}`, {
         method: 'POST',
@@ -34,12 +35,10 @@ export async function POST(req: Request) {
 
       const data = await res.json();
       if (!res.ok) {
-        console.error('Meta API Error Details:', JSON.stringify(data));
-        return NextResponse.json({ error: data.error?.message || 'Meta API rejection' }, { status: 400 });
+        return NextResponse.json({ error: data.error?.message || 'Meta API Error' }, { status: 400 });
       }
     }
 
-    // Save locally and pause AI
     const savedMessage = await prisma.message.create({
       data: { conversationId, content: messageText, senderType: 'agent' }
     });
@@ -51,7 +50,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, savedMessage });
   } catch (error: any) {
-    console.error('Reply route exception:', error);
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
