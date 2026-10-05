@@ -1,32 +1,59 @@
 'use client';
 
-import { useRef } from 'react';
-import { sendMessage } from './actions';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function ChatInput({ conversationId }: { conversationId: string }) {
-  const formRef = useRef<HTMLFormElement>(null);
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const router = useRouter();
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim() || sending) return;
+
+    setSending(true);
+    try {
+      const res = await fetch('/api/messages/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, messageText: message })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Failed to send: ${data.error || 'Unknown error'}`);
+        return;
+      }
+
+      setMessage('');
+      router.refresh(); // Refresh inbox to show new message
+    } catch (err) {
+      console.error('Network error sending message:', err);
+      alert('Network error while sending message.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <div className="p-4 bg-brand-card border-t border-brand-border">
-      <form 
-        ref={formRef}
-        action={async (formData) => {
-          await sendMessage(formData);
-          formRef.current?.reset(); // Clear the text input after sending
-        }} 
-        className="flex gap-2"
-      >
-        <input type="hidden" name="conversationId" value={conversationId} />
+      <form onSubmit={handleSend} className="flex gap-2">
         <input 
           type="text" 
-          name="message"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
           required
           autoComplete="off"
           placeholder="Type a message (Sending will automatically pause AI)..." 
           className="flex-1 p-3 border border-brand-border rounded-md text-sm bg-brand-light focus:outline-brand-orange"
         />
-        <button type="submit" className="bg-brand-orange hover:bg-brand-orange-hover text-white px-6 py-3 rounded-md font-medium transition-colors">
-          Send
+        <button 
+          type="submit" 
+          disabled={sending}
+          className="bg-brand-orange hover:bg-brand-orange-hover text-white px-6 py-3 rounded-md font-medium transition-colors disabled:opacity-50"
+        >
+          {sending ? 'Sending...' : 'Send'}
         </button>
       </form>
     </div>

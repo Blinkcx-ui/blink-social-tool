@@ -6,7 +6,7 @@ export async function POST(req: Request) {
     const { conversationId, messageText } = await req.json();
 
     if (!conversationId || !messageText) {
-      return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing conversationId or messageText' }, { status: 400 });
     }
 
     const conversation = await prisma.conversation.findUnique({
@@ -15,14 +15,13 @@ export async function POST(req: Request) {
     });
 
     if (!conversation || !conversation.socialAccount?.accessToken) {
-      return NextResponse.json({ error: 'Token or conversation missing' }, { status: 400 });
+      return NextResponse.json({ error: 'Active session or token missing in database' }, { status: 400 });
     }
 
     const { platform, accessToken } = conversation.socialAccount;
     const recipientId = conversation.customerName.replace('User_', '');
 
-    console.log(`Attempting to send outbound message to recipient: ${recipientId} via ${platform}`);
-
+    // Send via Meta Graph API if Instagram/Facebook
     if (platform === 'instagram' || platform === 'facebook') {
       const res = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${accessToken}`, {
         method: 'POST',
@@ -34,24 +33,25 @@ export async function POST(req: Request) {
       });
 
       const data = await res.json();
-      console.log("Meta Graph API Response:", JSON.stringify(data, null, 2));
-
       if (!res.ok) {
-        throw new Error(data.error?.message || 'Meta API rejected message');
+        console.error('Meta API Error Details:', JSON.stringify(data));
+        return NextResponse.json({ error: data.error?.message || 'Meta API rejection' }, { status: 400 });
       }
     }
 
+    // Save locally and pause AI
     const savedMessage = await prisma.message.create({
-      data: {
-        conversationId,
-        content: messageText,
-        senderType: 'agent',
-      }
+      data: { conversationId, content: messageText, senderType: 'agent' }
+    });
+
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { aiStatus: 'paused' }
     });
 
     return NextResponse.json({ success: true, savedMessage });
   } catch (error: any) {
-    console.error('Detailed Reply Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Reply route exception:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
