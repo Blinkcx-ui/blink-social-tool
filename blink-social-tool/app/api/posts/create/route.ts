@@ -14,33 +14,36 @@ export async function POST(req: Request) {
       clientId = dbUser?.clientId;
     }
 
+    // Fallback/Auto-create Master Workspace to prevent foreign key errors
     if (!clientId) {
       let masterClient = await prisma.client.findFirst({ where: { name: 'Master Workspace' } });
       if (!masterClient) {
         masterClient = await prisma.client.create({
-          data: { name: 'Master Workspace', enabledFeatures: ['dashboard', 'ticketing', 'post', 'activity', 'report'] }
+          data: { 
+            name: 'Master Workspace', 
+            enabledFeatures: ['dashboard', 'ticketing', 'post', 'activity', 'report'] 
+          }
         });
       }
       clientId = masterClient.id;
     }
 
-    // 1. Fetch connected social account credentials for live API publishing
+    // Fetch connected social account credentials
     const socialAccount = await prisma.socialAccount.findFirst({
       where: { clientId, platform: platform.toLowerCase() }
     });
 
-    // 2. If an access token exists, publish live to Meta/Instagram/Facebook Graph API
+    // If live access tokens are configured, publish directly to Meta Graph API
     if (socialAccount && socialAccount.accessToken && socialAccount.platformId) {
       const pageId = socialAccount.platformId;
       const accessToken = socialAccount.accessToken;
 
       if (platform.toLowerCase() === 'instagram') {
-        // Step A: Create IG Container
         const containerRes = await fetch(`https://graph.facebook.com/v20.0/${pageId}/media`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            image_url: mediaUrl, // Note: For Meta API, mediaUrl must be a public URL, not base64
+            image_url: mediaUrl,
             caption: content,
             access_token: accessToken
           })
@@ -48,7 +51,6 @@ export async function POST(req: Request) {
         const containerData = await containerRes.json();
         
         if (containerData.id) {
-          // Step B: Publish IG Container
           await fetch(`https://graph.facebook.com/v20.0/${pageId}/media_publish`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -59,7 +61,6 @@ export async function POST(req: Request) {
           });
         }
       } else if (platform.toLowerCase() === 'facebook') {
-        // Publish to Facebook Page Feed
         await fetch(`https://graph.facebook.com/v20.0/${pageId}/feed`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Save to local database for internal tracking
+    // Save to local database for internal tracking
     const post = await prisma.post.create({
       data: {
         clientId,
