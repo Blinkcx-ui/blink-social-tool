@@ -40,6 +40,21 @@ export default async function SettingsPage() {
   const isConnected = (platform: string) => linkedAccounts.some(acc => acc.platform === platform);
   const getCount = (platform: string) => linkedAccounts.filter(acc => acc.platform === platform).length;
 
+  const defaultCategoryJSON = JSON.stringify({
+    "Support": {
+      "Technical": {
+        "App Crash": ["iOS", "Android"],
+        "Login": ["Forgot Password", "Account Locked"]
+      }
+    },
+    "Sales": {
+      "Inquiry": {
+        "Pricing": ["Enterprise", "Basic"],
+        "Features": ["API", "Integrations"]
+      }
+    }
+  }, null, 2);
+
   // 1. ACTION: ADD REAL SOCIAL ACCOUNT
   async function addSocialAccount(formData: FormData) {
     'use server';
@@ -116,11 +131,18 @@ export default async function SettingsPage() {
     revalidatePath('/settings');
   }
 
-  // 5. ACTION: SAVE ESCALATION MATRIX & TICKET SETTINGS
+  // 5. ACTION: SAVE ESCALATION MATRIX & TICKET CATEGORY TREE
   async function saveEscalationMatrix(formData: FormData) {
     'use server';
     const targetId = currentClientId || clientConfig?.id;
     if (!targetId) return;
+
+    let parsedCategories = {};
+    try {
+      parsedCategories = JSON.parse(formData.get('categoryDependencies') as string);
+    } catch (e) {
+      // Fallback if JSON format is incorrect
+    }
 
     await prisma.client.update({
       where: { id: targetId },
@@ -130,9 +152,7 @@ export default async function SettingsPage() {
         escalation2Hours: Number(formData.get('escalation2Hours')) || 4,
         escalation3Email: formData.get('escalation3Email') as string,
         escalation3Hours: Number(formData.get('escalation3Hours')) || 24,
-        ticketFields: {
-          categories: formData.get('categoryDependencies') as string || 'Inquiry, Complaint'
-        }
+        ticketFields: parsedCategories
       }
     });
     revalidatePath('/settings');
@@ -144,7 +164,7 @@ export default async function SettingsPage() {
         
         <div>
           <h1 className="text-2xl font-bold text-[#1e293b]">Settings & Integrations</h1>
-          <p className="text-sm text-slate-500 mt-1">Configure AI MCP Engine, social messaging channels, escalations, and manage users</p>
+          <p className="text-sm text-slate-500 mt-1">Configure AI MCP Engine, social messaging channels, 4-level cascading tickets, escalations, and manage users</p>
         </div>
 
         {/* --- STATUS GRID --- */}
@@ -181,64 +201,44 @@ export default async function SettingsPage() {
           </form>
         </div>
 
-        {/* --- TICKET & ESCALATION MATRIX (NEW) --- */}
+        {/* --- TICKET CATEGORIES (4-LEVEL CASCADING) & ESCALATION MATRIX --- */}
         <div className="bg-white p-6 rounded-xl border border-orange-300 shadow-sm">
-          <h2 className="text-sm font-bold text-orange-600 flex items-center gap-2 mb-4">⚠️ SLA & Ticket Escalation Matrix</h2>
+          <h2 className="text-sm font-bold text-orange-600 flex items-center gap-2 mb-4">⚠️ 4-Level Cascading Categories & Escalation Matrix</h2>
           <form action={saveEscalationMatrix} className="space-y-6">
             
-            {/* Custom Ticket Fields */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Custom Ticket Categories (Comma separated)</label>
-              <input 
-                type="text" 
-                name="categoryDependencies" 
-                defaultValue={(clientConfig?.ticketFields as any)?.categories || 'Inquiry, Complaint, Technical, Billing'} 
-                className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-gray-50 focus:outline-orange-500" 
-              />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Level 1 */}
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
-                <h4 className="font-semibold text-sm text-slate-800">Escalation 1 (Immediate)</h4>
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Alert Email Address</label>
-                  <input type="email" name="escalation1Email" defaultValue={clientConfig?.escalation1Email || ''} placeholder="support@company.com" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-orange-500" />
-                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Cascading Tree Configuration */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700">Ticket Categories Tree (JSON Configuration for Cat 1 -> 2 -> 3 -> 4)</label>
+                <p className="text-[10px] text-slate-500">Define nested dependencies used by the ticket creation form.</p>
+                <textarea 
+                  name="categoryDependencies" 
+                  rows={12}
+                  defaultValue={clientConfig?.ticketFields ? JSON.stringify(clientConfig.ticketFields, null, 2) : defaultCategoryJSON} 
+                  className="w-full p-3 border border-gray-200 rounded-md text-xs bg-slate-900 text-green-400 font-mono focus:outline-orange-500" 
+                />
               </div>
 
-              {/* Level 2 */}
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
-                <h4 className="font-semibold text-sm text-slate-800">Escalation 2 (Unresolved)</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Trigger Hours</label>
-                    <input type="number" name="escalation2Hours" defaultValue={clientConfig?.escalation2Hours || 4} className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-orange-500" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Escalation Email</label>
-                    <input type="email" name="escalation2Email" defaultValue={clientConfig?.escalation2Email || ''} placeholder="manager@company.com" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-orange-500" />
-                  </div>
+              {/* Escalation Matrix Setup */}
+              <div className="space-y-4">
+                <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 space-y-1">
+                  <h4 className="font-semibold text-xs text-slate-800">Escalation 1 (Immediate Ticket Creation Email)</h4>
+                  <input type="email" name="escalation1Email" defaultValue={clientConfig?.escalation1Email || ''} placeholder="support@company.com" className="w-full p-2 border border-gray-200 rounded text-xs bg-white focus:outline-orange-500" />
                 </div>
-              </div>
-
-              {/* Level 3 */}
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50 space-y-3">
-                <h4 className="font-semibold text-sm text-slate-800">Escalation 3 (Critical)</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Trigger Hours</label>
-                    <input type="number" name="escalation3Hours" defaultValue={clientConfig?.escalation3Hours || 24} className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-orange-500" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Executive Email</label>
-                    <input type="email" name="escalation3Email" defaultValue={clientConfig?.escalation3Email || ''} placeholder="director@company.com" className="w-full p-2.5 border border-gray-200 rounded-md text-sm bg-white focus:outline-orange-500" />
-                  </div>
+                <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 grid grid-cols-2 gap-2">
+                  <div className="col-span-2"><h4 className="font-semibold text-xs text-slate-800">Escalation 2 (Unresolved Timeout)</h4></div>
+                  <input type="number" name="escalation2Hours" defaultValue={clientConfig?.escalation2Hours || 4} placeholder="Hours" className="w-full p-2 border border-gray-200 rounded text-xs bg-white focus:outline-orange-500" />
+                  <input type="email" name="escalation2Email" defaultValue={clientConfig?.escalation2Email || ''} placeholder="manager@company.com" className="w-full p-2 border border-gray-200 rounded text-xs bg-white focus:outline-orange-500" />
+                </div>
+                <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 grid grid-cols-2 gap-2">
+                  <div className="col-span-2"><h4 className="font-semibold text-xs text-slate-800">Escalation 3 (Critical Executive Timeout)</h4></div>
+                  <input type="number" name="escalation3Hours" defaultValue={clientConfig?.escalation3Hours || 24} placeholder="Hours" className="w-full p-2 border border-gray-200 rounded text-xs bg-white focus:outline-orange-500" />
+                  <input type="email" name="escalation3Email" defaultValue={clientConfig?.escalation3Email || ''} placeholder="director@company.com" className="w-full p-2 border border-gray-200 rounded text-xs bg-white focus:outline-orange-500" />
                 </div>
               </div>
             </div>
 
-            <button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-6 py-2.5 rounded-md transition shadow-sm cursor-pointer">
+            <button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold px-6 py-2.5 rounded-md transition shadow-sm cursor-pointer w-full lg:w-auto">
               Save Matrix & Ticket Rules
             </button>
           </form>

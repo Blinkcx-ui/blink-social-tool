@@ -3,21 +3,38 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { conversationId, clientId, customerName, contactDetails, city, source, category, details } = await req.json();
+    const { 
+      conversationId, clientId, customerName, socialAccount, 
+      mobile, email, city, source, ticketType, 
+      category1, category2, category3, category4, details 
+    } = await req.json();
 
     if (!clientId || !customerName) {
-      return NextResponse.json({ error: 'Missing required ticket parameters' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
     }
+
+    // Generate unique ticket number (e.g., TKT-123456)
+    const ticketNumber = `TKT-${Math.floor(100000 + Math.random() * 900000)}`;
 
     const ticket = await prisma.ticket.create({
       data: {
+        ticketNumber,
         clientId,
         conversationId,
+        
         customerName,
-        contactDetails: contactDetails || 'Not provided',
+        mobile,
+        email,
         city,
+        socialAccount,
+        
+        ticketType,
+        category1,
+        category2,
+        category3,
+        category4,
+        
         source: source || 'web',
-        category: category || 'Inquiry',
         details,
         status: 'Open'
       }
@@ -25,18 +42,15 @@ export async function POST(req: Request) {
 
     const client = await prisma.client.findUnique({ where: { id: clientId } });
 
-    // Send Escalation Level 1 Email Notification
     if (client?.escalation1Email) {
-      console.log(`[AUTOMATIC ESCALATION LEVEL 1 EMAIL] Sending ticket alert #${ticket.id} to: ${client.escalation1Email}`);
-      // SendGrid/Resend API trigger goes here
+      console.log(`[ESCALATION LEVEL 1] Alerting: ${client.escalation1Email} for Ticket ${ticketNumber}`);
     }
 
-    // Log Activity Alert
     await prisma.notification.create({
       data: {
         clientId,
         type: 'TICKET_CREATED',
-        content: `New ticket #${ticket.id.slice(0, 6)} created for ${customerName} (${category})`,
+        content: `New ticket ${ticketNumber} created for ${customerName} (${ticketType})`,
         targetUrl: `/tickets?id=${ticket.id}`
       }
     });

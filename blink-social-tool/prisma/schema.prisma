@@ -25,6 +25,8 @@ model Client {
   escalation2Hours  Int?            @default(4)
   escalation3Email  String?
   escalation3Hours  Int?            @default(24)
+  
+  // NEW: JSON to hold the dynamic cascading category tree
   ticketFields      Json?
 
   users             User[]
@@ -84,7 +86,7 @@ model Message {
   id             String       @id @default(uuid())
   conversationId String
   
-  // UPDATED: Cascade delete protects against foreign key errors
+  // UPDATED: Added onDelete: Cascade
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   
   content        String
@@ -143,6 +145,10 @@ model Notification {
 // 8. Support Tickets
 model Ticket {
   id             String        @id @default(uuid())
+  
+  // NEW: Unique Ticket Number (default uuid ensures existing rows don't crash the database update)
+  ticketNumber   String        @unique @default(uuid()) 
+  
   clientId       String
   client         Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
   
@@ -156,7 +162,19 @@ model Ticket {
   category       String        // "Inquiry" or "Complaint"
   details        String
   
-  // NEW: Ticket Status for the Escalation Matrix
+  // NEW: Expanded Customer Profile Data
+  mobile         String?
+  email          String?
+  socialAccount  String?       // Automatically pulled from inbox
+  
+  // NEW: Dynamic Ticket Information (4-Level Cascading)
+  ticketType     String?
+  category1      String?
+  category2      String?
+  category3      String?
+  category4      String?
+  
+  // NEW: Status for the Escalation Matrix
   status         String        @default("Open") // "Open", "Escalated_Level1", "Escalated_Level2", "Closed"
   
   createdAt      DateTime      @default(now())

@@ -1,6 +1,7 @@
 import './globals.css';
 import Link from 'next/link';
 import Image from 'next/image';
+import NotificationBell from '@/components/NotificationBell';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,8 +87,13 @@ export default function RootLayout({
           </div>
         </aside>
 
+        {/* Global Notification Bell */}
+        <div className="fixed top-4 right-8 z-50">
+          <NotificationBell />
+        </div>
+
         {/* Main Content Area */}
-        <main className="flex-1 h-screen overflow-y-auto bg-slate-50 flex flex-col">
+        <main className="flex-1 h-screen overflow-y-auto bg-slate-50 flex flex-col relative">
           {children}
         </main>
       </body>
