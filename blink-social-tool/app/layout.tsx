@@ -1,7 +1,7 @@
 import './globals.css';
 import Link from 'next/link';
 import Image from 'next/image';
-import NotificationBell from '@/components/NotificationBell';
+import NotificationBell from './components/NotificationBell';
 
 export const dynamic = 'force-dynamic';
 
