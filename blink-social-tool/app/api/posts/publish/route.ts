@@ -1,29 +1,42 @@
+import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   try {
-    const { clientId, platform, content, mediaUrl } = await req.json();
+    const { platform, content, mediaUrl } = await req.json();
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('blink_session')?.value;
 
-    if (!clientId || !content) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    let clientId = null;
+    if (userId && userId !== 'demo-master-id' && userId !== 'super-admin-blink') {
+      const dbUser = await prisma.user.findUnique({ where: { id: userId } });
+      clientId = dbUser?.clientId;
     }
 
-    // Save post record in your Neon database
-    const newPost = await prisma.post.create({
+    // Fallback/Auto-create Master Workspace to prevent foreign key errors
+    if (!clientId) {
+      let masterClient = await prisma.client.findFirst({ where: { name: 'Master Workspace' } });
+      if (!masterClient) {
+        masterClient = await prisma.client.create({
+          data: { name: 'Master Workspace', enabledFeatures: ['dashboard', 'ticketing', 'post', 'activity', 'report'] }
+        });
+      }
+      clientId = masterClient.id;
+    }
+
+    const post = await prisma.post.create({
       data: {
         clientId,
-        platform,
+        platform: platform || 'instagram',
         content,
         mediaUrl: mediaUrl || null,
-        status: 'published',
-      },
+        status: 'published'
+      }
     });
 
-    return NextResponse.json({ success: true, post: newPost });
+    return NextResponse.json({ success: true, post });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
