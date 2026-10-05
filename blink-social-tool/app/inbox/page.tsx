@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import CreateTicketModal from '@/components/CreateTicketModal';
+import ChatInput from './ChatInput'; // <-- Added missing import
 
 export const revalidate = 0;
 
@@ -74,7 +75,6 @@ export default async function InboxPage({
                 </p>
               </div>
               <div className="flex items-center gap-4">
-                {/* NEW: Ticket Modal Component injected here */}
                 <CreateTicketModal 
                   conversationId={activeChat.id}
                   clientId={activeChat.socialAccount.clientId}
@@ -119,19 +119,8 @@ export default async function InboxPage({
               ))}
             </div>
 
-            {/* Message Input Area */}
-            <div className="p-4 bg-brand-card border-t border-brand-border">
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="Type a message (Sending will automatically pause AI)..." 
-                  className="flex-1 p-3 border border-brand-border rounded-md text-sm bg-brand-light focus:outline-brand-orange"
-                />
-                <button className="bg-brand-orange hover:bg-orange-600 text-white px-6 py-3 rounded-md font-medium transition-colors">
-                  Send
-                </button>
-              </div>
-            </div>
+            {/* LIVE Interactive Input Component */}
+            <ChatInput conversationId={activeChat.id} />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500">

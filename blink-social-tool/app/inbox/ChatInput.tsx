@@ -22,12 +22,12 @@ export default function ChatInput({ conversationId }: { conversationId: string }
 
       const data = await res.json();
       if (!res.ok) {
-        alert(`Failed to send: ${data.error || 'Unknown error'}`);
+        alert(`Meta API Error: ${data.error || 'Failed to send'}`);
         return;
       }
 
       setMessage('');
-      router.refresh(); // Refresh inbox to show new message
+      router.refresh();
     } catch (err) {
       console.error('Network error sending message:', err);
       alert('Network error while sending message.');
@@ -51,7 +51,7 @@ export default function ChatInput({ conversationId }: { conversationId: string }
         <button 
           type="submit" 
           disabled={sending}
-          className="bg-brand-orange hover:bg-brand-orange-hover text-white px-6 py-3 rounded-md font-medium transition-colors disabled:opacity-50"
+          className="bg-brand-orange hover:bg-orange-600 text-white px-6 py-3 rounded-md font-medium transition-colors disabled:opacity-50"
         >
           {sending ? 'Sending...' : 'Send'}
         </button>
