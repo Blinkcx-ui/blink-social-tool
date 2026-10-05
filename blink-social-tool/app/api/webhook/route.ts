@@ -37,64 +37,64 @@ export async function POST(req: Request) {
       messageText = change.messages?.[0]?.text?.body || 'Media message';
     }
 
-    if (!platformId || !messageText) return NextResponse.json({ success: true });
-    if (String(platformId) === String(senderPsid)) return NextResponse.json({ success: true });
+    if (!platformId || !messageText || String(platformId) === String(senderPsid)) {
+      return NextResponse.json({ success: true });
+    }
 
-    let socialAccount = await prisma.socialAccount.findFirst({
+    const socialAccount = await prisma.socialAccount.findFirst({
       where: { platformId: String(platformId) },
     }) || await prisma.socialAccount.findFirst();
 
     if (!socialAccount) return NextResponse.json({ error: 'Account not found' }, { status: 404 });
 
-    // CRITICAL FIX: Look up conversation by exact ID, not by name
-    let conversation = await prisma.conversation.findFirst({
-      where: { 
-        socialAccountId: socialAccount.id, 
-        customerHandle: String(senderPsid) // The unbreakable link
-      },
-    });
-
-    let finalCustomerName = conversation?.customerName || 'Customer';
+    // 1. Fetch Profile Data & Avatar from Meta
+    let finalCustomerName = 'Customer';
+    let finalAvatarUrl = null;
     
-    // Fetch profile data async if we don't have a good name yet
-    if (senderPsid && socialAccount.accessToken && finalCustomerName === 'Customer') {
+    if (senderPsid && socialAccount.accessToken) {
       try {
         const profileRes = await fetch(`https://graph.facebook.com/v20.0/${senderPsid}?fields=name,username,profile_pic&access_token=${socialAccount.accessToken}`);
         const profileData = await profileRes.json();
         if (profileData.name || profileData.username) finalCustomerName = profileData.name || profileData.username;
+        if (profileData.profile_pic) finalAvatarUrl = profileData.profile_pic;
       } catch (e) {
         console.error("Profile fetch failed");
       }
     }
 
-    if (!conversation) {
-      conversation = await prisma.conversation.create({
-        data: {
+    // 2. ATOMIC UPSERT: Physically guarantees zero duplicates
+    const conversation = await prisma.conversation.upsert({
+      where: {
+        socialAccountId_customerHandle: {
           socialAccountId: socialAccount.id,
-          customerName: finalCustomerName,
           customerHandle: String(senderPsid),
-          aiStatus: 'active',
-        },
-      });
-    } else if (conversation.customerName === 'Customer' && finalCustomerName !== 'Customer') {
-      // Update name if we just fetched it successfully
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { customerName: finalCustomerName }
-      });
-    }
+        }
+      },
+      update: {
+        // Updates the profile picture and name if they change later
+        customerName: finalCustomerName !== 'Customer' ? finalCustomerName : undefined,
+        avatarUrl: finalAvatarUrl || undefined, 
+      },
+      create: {
+        socialAccountId: socialAccount.id,
+        customerName: finalCustomerName,
+        customerHandle: String(senderPsid),
+        avatarUrl: finalAvatarUrl, // Saves the avatar to the DB
+        aiStatus: 'active',
+      }
+    });
 
-    // STRICT DEDUPLICATION: Ensure this exact text wasn't added in the last 10 seconds
-    const duplicateCheck = await prisma.message.findFirst({
+    // 3. Message Deduplication lock (15 seconds)
+    const duplicateMessage = await prisma.message.findFirst({
       where: {
         conversationId: conversation.id,
         content: messageText,
         senderType: 'customer',
-        createdAt: { gte: new Date(Date.now() - 10000) } 
+        createdAt: { gte: new Date(Date.now() - 15000) } 
       }
     });
 
-    if (duplicateCheck) return NextResponse.json({ success: true, info: 'Duplicate blocked' });
+    if (duplicateMessage) return NextResponse.json({ success: true, info: 'Duplicate blocked' });
 
     await prisma.message.create({
       data: {
@@ -106,6 +106,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Webhook processing error:', error);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
