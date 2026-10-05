@@ -2,10 +2,10 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import CreateTicketModal from '@/components/CreateTicketModal';
 import ChatInput from './ChatInput';
+import AutoRefresh from './AutoRefresh'; // <-- New import
 
 export const revalidate = 0;
 
-// Helper to get initials if profile pic is missing
 const getInitials = (name: string) => {
   const clean = name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
   return clean ? clean.substring(0, 2).toUpperCase() : 'U';
@@ -30,7 +30,9 @@ export default async function InboxPage({
   const activeChat = conversations.find(c => c.id === activeChatId);
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full relative">
+      <AutoRefresh /> {/* <-- Enables real-time live messages */}
+      
       {/* Conversation List */}
       <div className="w-1/3 bg-brand-card border-r border-brand-border flex flex-col h-full">
         <div className="p-4 border-b border-brand-border flex justify-between items-center bg-brand-light">
@@ -44,7 +46,6 @@ export default async function InboxPage({
           {conversations.map((chat) => {
             const lastMessage = chat.messages[chat.messages.length - 1];
             const isActive = chat.id === activeChatId;
-            // Support DB avatar if it exists, otherwise use initials
             const avatar = (chat as any).avatarUrl; 
             
             return (
@@ -56,7 +57,6 @@ export default async function InboxPage({
                 }`}
               >
                 <div className="flex items-center gap-3 mb-1">
-                  {/* AVATAR UI */}
                   {avatar ? (
                     <img src={avatar} alt="Profile" className="w-10 h-10 rounded-full object-cover border border-gray-200" />
                   ) : (
@@ -86,7 +86,6 @@ export default async function InboxPage({
           <>
             <div className="p-4 border-b border-brand-border bg-brand-card flex justify-between items-center">
               <div className="flex items-center gap-3">
-                {/* HEADER AVATAR */}
                 {(activeChat as any).avatarUrl ? (
                    <img src={(activeChat as any).avatarUrl} alt="Profile" className="w-12 h-12 rounded-full object-cover border border-gray-200" />
                 ) : (

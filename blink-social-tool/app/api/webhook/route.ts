@@ -17,9 +17,9 @@ export async function POST(req: Request) {
     const entry = body.entry?.[0];
     const messagingEvent = entry?.messaging?.[0];
     
-    // 1. HARD BLOCK: Ignore echoes, read receipts, and delivery statuses
+    // Ignore echoes, reads, and deliveries
     if (messagingEvent?.message?.is_echo || messagingEvent?.read || messagingEvent?.delivery) {
-      return NextResponse.json({ success: true, info: 'Ignored status event' });
+      return NextResponse.json({ success: true });
     }
 
     let platformId = null;
@@ -38,11 +38,7 @@ export async function POST(req: Request) {
     }
 
     if (!platformId || !messageText) return NextResponse.json({ success: true });
-
-    // 2. HARD BLOCK: Prevent loop if you are sending a message to yourself
-    if (String(platformId) === String(senderPsid)) {
-      return NextResponse.json({ success: true, info: 'Ignored self-message loop' });
-    }
+    if (String(platformId) === String(senderPsid)) return NextResponse.json({ success: true });
 
     let socialAccount = await prisma.socialAccount.findFirst({
       where: { platformId: String(platformId) },
@@ -50,24 +46,26 @@ export async function POST(req: Request) {
 
     if (!socialAccount) return NextResponse.json({ error: 'Account not found' }, { status: 404 });
 
-    // 3. FETCH PROFILE DATA
-    let finalCustomerName = senderPsid ? `User_${senderPsid}` : 'Customer';
-    let avatarUrl = null;
+    // CRITICAL FIX: Look up conversation by exact ID, not by name
+    let conversation = await prisma.conversation.findFirst({
+      where: { 
+        socialAccountId: socialAccount.id, 
+        customerHandle: String(senderPsid) // The unbreakable link
+      },
+    });
+
+    let finalCustomerName = conversation?.customerName || 'Customer';
     
-    if (senderPsid && socialAccount.accessToken) {
+    // Fetch profile data async if we don't have a good name yet
+    if (senderPsid && socialAccount.accessToken && finalCustomerName === 'Customer') {
       try {
         const profileRes = await fetch(`https://graph.facebook.com/v20.0/${senderPsid}?fields=name,username,profile_pic&access_token=${socialAccount.accessToken}`);
         const profileData = await profileRes.json();
         if (profileData.name || profileData.username) finalCustomerName = profileData.name || profileData.username;
-        if (profileData.profile_pic) avatarUrl = profileData.profile_pic;
-      } catch (error) {
+      } catch (e) {
         console.error("Profile fetch failed");
       }
     }
-
-    let conversation = await prisma.conversation.findFirst({
-      where: { socialAccountId: socialAccount.id, customerName: finalCustomerName },
-    });
 
     if (!conversation) {
       conversation = await prisma.conversation.create({
@@ -76,29 +74,28 @@ export async function POST(req: Request) {
           customerName: finalCustomerName,
           customerHandle: String(senderPsid),
           aiStatus: 'active',
-          // Optional: If your Prisma schema has an avatar field, add it here:
-          // avatarUrl: avatarUrl
         },
+      });
+    } else if (conversation.customerName === 'Customer' && finalCustomerName !== 'Customer') {
+      // Update name if we just fetched it successfully
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { customerName: finalCustomerName }
       });
     }
 
-    // 4. THE DUPLICATE KILLER (Idempotency Check)
-    // Checks if the exact same message was saved in the last 5 seconds
+    // STRICT DEDUPLICATION: Ensure this exact text wasn't added in the last 10 seconds
     const duplicateCheck = await prisma.message.findFirst({
       where: {
         conversationId: conversation.id,
         content: messageText,
         senderType: 'customer',
-        createdAt: { gte: new Date(Date.now() - 5000) } 
+        createdAt: { gte: new Date(Date.now() - 10000) } 
       }
     });
 
-    if (duplicateCheck) {
-      console.log("Blocked duplicate webhook ping from Meta");
-      return NextResponse.json({ success: true, info: 'Duplicate prevented' });
-    }
+    if (duplicateCheck) return NextResponse.json({ success: true, info: 'Duplicate blocked' });
 
-    // Save actual unique message
     await prisma.message.create({
       data: {
         conversationId: conversation.id,
