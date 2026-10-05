@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 
 export async function POST(req: Request) {
   try {
@@ -13,27 +11,21 @@ export async function POST(req: Request) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    
+    // Convert file buffer to base64 Data URL (Fully serverless-compatible on Vercel)
+    const base64String = buffer.toString('base64');
+    const mimeType = file.type || 'image/png';
+    const dataUrl = `data:${mimeType};base64,${base64String}`;
 
-    // Ensure the public/uploads directory exists
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    await mkdir(uploadsDir, { recursive: true });
-
-    // Sanitize filename and add timestamp to prevent overwriting
-    const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-    const filePath = path.join(uploadsDir, filename);
-
-    await writeFile(filePath, buffer);
-
-    // Determine media type for the database
-    const mediaType = file.type.startsWith('image/') 
-      ? 'image' 
-      : file.type.startsWith('video/') 
-        ? 'video' 
-        : 'document';
+    const mediaType = mimeType.startsWith('video/') 
+      ? 'video' 
+      : mimeType.includes('pdf') || mimeType.includes('document') 
+        ? 'document' 
+        : 'image';
 
     return NextResponse.json({ 
       success: true, 
-      url: `/uploads/${filename}`, 
+      url: dataUrl, 
       type: mediaType, 
       fileName: file.name 
     });
