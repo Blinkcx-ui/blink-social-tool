@@ -1,9 +1,15 @@
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import CreateTicketModal from '@/components/CreateTicketModal';
-import ChatInput from './ChatInput'; // <-- Added missing import
+import ChatInput from './ChatInput';
 
 export const revalidate = 0;
+
+// Helper to get initials if profile pic is missing
+const getInitials = (name: string) => {
+  const clean = name.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+  return clean ? clean.substring(0, 2).toUpperCase() : 'U';
+};
 
 export default async function InboxPage({
   searchParams,
@@ -25,7 +31,7 @@ export default async function InboxPage({
 
   return (
     <div className="flex h-full">
-      {/* Conversation List (Left Column) */}
+      {/* Conversation List */}
       <div className="w-1/3 bg-brand-card border-r border-brand-border flex flex-col h-full">
         <div className="p-4 border-b border-brand-border flex justify-between items-center bg-brand-light">
           <h2 className="font-semibold text-gray-800">Messages</h2>
@@ -38,6 +44,8 @@ export default async function InboxPage({
           {conversations.map((chat) => {
             const lastMessage = chat.messages[chat.messages.length - 1];
             const isActive = chat.id === activeChatId;
+            // Support DB avatar if it exists, otherwise use initials
+            const avatar = (chat as any).avatarUrl; 
             
             return (
               <Link 
@@ -47,32 +55,51 @@ export default async function InboxPage({
                   isActive ? 'border-l-brand-orange bg-brand-light' : 'border-l-transparent'
                 }`}
               >
-                <div className="flex justify-between items-start mb-1">
-                  <span className="font-medium text-gray-800">
-                    {chat.customerName} ({chat.socialAccount.platform})
-                  </span>
-                  <span className="text-xs text-gray-500">Live</span>
+                <div className="flex items-center gap-3 mb-1">
+                  {/* AVATAR UI */}
+                  {avatar ? (
+                    <img src={avatar} alt="Profile" className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-brand-orange flex items-center justify-center text-white font-bold text-sm">
+                      {getInitials(chat.customerName)}
+                    </div>
+                  )}
+                  <div className="flex-1 overflow-hidden">
+                    <div className="flex justify-between items-start">
+                      <span className="font-medium text-gray-800 truncate">{chat.customerName}</span>
+                      <span className="text-xs text-gray-500 shrink-0 ml-2">Live</span>
+                    </div>
+                    <p className="text-sm text-gray-600 truncate">
+                      {lastMessage ? lastMessage.content : 'No messages yet'}
+                    </p>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-600 truncate">
-                  {lastMessage ? lastMessage.content : 'No messages yet'}
-                </p>
               </Link>
             );
           })}
         </div>
       </div>
 
-      {/* Active Chat Window (Right Column) */}
+      {/* Active Chat Window */}
       <div className="flex-1 flex flex-col h-full bg-brand-light">
         {activeChat ? (
           <>
-            {/* Chat Header */}
             <div className="p-4 border-b border-brand-border bg-brand-card flex justify-between items-center">
-              <div>
-                <h3 className="font-semibold text-gray-800">{activeChat.customerName}</h3>
-                <p className="text-xs text-gray-500">
-                  {activeChat.customerHandle} via {activeChat.socialAccount.platform}
-                </p>
+              <div className="flex items-center gap-3">
+                {/* HEADER AVATAR */}
+                {(activeChat as any).avatarUrl ? (
+                   <img src={(activeChat as any).avatarUrl} alt="Profile" className="w-12 h-12 rounded-full object-cover border border-gray-200" />
+                ) : (
+                   <div className="w-12 h-12 rounded-full bg-brand-orange flex items-center justify-center text-white font-bold text-lg">
+                     {getInitials(activeChat.customerName)}
+                   </div>
+                )}
+                <div>
+                  <h3 className="font-semibold text-gray-800">{activeChat.customerName}</h3>
+                  <p className="text-xs text-gray-500">
+                    via {activeChat.socialAccount.platform}
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <CreateTicketModal 
@@ -82,7 +109,6 @@ export default async function InboxPage({
                   customerHandle={activeChat.customerHandle}
                   source={activeChat.socialAccount.platform}
                 />
-                
                 <div className="flex items-center gap-2 border-l border-gray-300 pl-4">
                   <span className="text-sm text-gray-600 font-medium">AI Agent:</span>
                   <span className={`px-3 py-1 rounded-md text-sm font-semibold border ${
@@ -96,13 +122,9 @@ export default async function InboxPage({
               </div>
             </div>
 
-            {/* Chat History */}
             <div className="flex-1 p-6 overflow-y-auto space-y-4">
               {activeChat.messages.map((msg) => (
-                <div 
-                  key={msg.id} 
-                  className={`flex ${msg.senderType === 'customer' ? 'justify-start' : 'justify-end'}`}
-                >
+                <div key={msg.id} className={`flex ${msg.senderType === 'customer' ? 'justify-start' : 'justify-end'}`}>
                   <div className={`p-3 rounded-lg max-w-md shadow-sm ${
                     msg.senderType === 'customer'
                       ? 'bg-brand-card border border-brand-border rounded-tl-none text-gray-800'
@@ -119,7 +141,6 @@ export default async function InboxPage({
               ))}
             </div>
 
-            {/* LIVE Interactive Input Component */}
             <ChatInput conversationId={activeChat.id} />
           </>
         ) : (
