@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// 1. Handle Webhook Verification (Required by Meta / Instagram / WhatsApp setup)
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const mode = url.searchParams.get('hub.mode');
@@ -15,80 +14,91 @@ export async function GET(req: Request) {
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
     return new NextResponse(challenge, { status: 200 });
   }
-
   return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
 }
 
-// 2. Handle Real-Time Incoming Messages and Events
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("Incoming Webhook Payload:", JSON.stringify(body, null, 2));
+    const entry = body.entry?.[0];
+    
+    // 1. STOP DUPLICATES: Ignore Meta's "echo" messages of your own replies
+    const messagingEvent = entry?.messaging?.[0];
+    if (messagingEvent?.message?.is_echo) {
+      console.log("Ignored echo message to prevent duplicate chats.");
+      return NextResponse.json({ success: true, info: 'Ignored echo' });
+    }
 
     let platformId = null;
-    let senderName = 'Customer';
+    let senderPsid = null;
     let messageText = null;
 
-    const entry = body.entry?.[0];
-
-    // Check for Instagram / Messenger messaging array structure
-    if (entry?.messaging?.[0]) {
-      const messagingEvent = entry.messaging[0];
+    if (messagingEvent) {
       platformId = messagingEvent.recipient?.id || entry.id;
-      const senderPsid = messagingEvent.sender?.id;
-      senderName = senderPsid ? `User_${senderPsid}` : 'Customer';
+      senderPsid = messagingEvent.sender?.id;
       messageText = messagingEvent.message?.text || messagingEvent.postback?.title || 'Media / Attachment';
-    } 
-    // Check for WhatsApp / Graph API changes structure
-    else if (entry?.changes?.[0]?.value) {
+    } else if (entry?.changes?.[0]?.value) {
       const change = entry.changes[0].value;
       platformId = change.metadata?.phone_number_id || change.metadata?.page_id || entry?.id;
-      const messageObj = change.messages?.[0];
-      if (messageObj) {
-        senderName = messageObj.from || 'Customer';
-        messageText = messageObj.text?.body || messageObj.type || 'Media message';
-      }
-    } 
-    // Fallback for direct JSON test payloads
-    else {
+      senderPsid = change.messages?.[0]?.from;
+      messageText = change.messages?.[0]?.text?.body || 'Media message';
+    } else {
+      // Manual test payload
       platformId = body.platformId;
-      senderName = body.senderName || 'Test Customer';
+      senderPsid = body.senderName;
       messageText = body.messageText || body.content;
     }
 
     if (!platformId || !messageText) {
-      return NextResponse.json({ success: true, info: 'Received event, but no message text found' });
+      return NextResponse.json({ success: true });
     }
 
-    // Find the linked social account in database
+    // 2. Find Social Account & Access Token
     let socialAccount = await prisma.socialAccount.findFirst({
       where: { platformId: String(platformId) },
     }) || await prisma.socialAccount.findFirst();
 
     if (!socialAccount) {
-      return NextResponse.json({ error: 'Social account not found in database' }, { status: 404 });
+      return NextResponse.json({ error: 'Social account not found' }, { status: 404 });
     }
 
-    // Find or create conversation thread
+    // 3. FETCH REAL PROFILE DATA FROM META
+    let finalCustomerName = senderPsid ? `User_${senderPsid}` : 'Customer';
+    let avatarUrl = null;
+
+    if (senderPsid && socialAccount.accessToken) {
+      try {
+        const profileRes = await fetch(`https://graph.facebook.com/v20.0/${senderPsid}?fields=name,username,profile_pic&access_token=${socialAccount.accessToken}`);
+        const profileData = await profileRes.json();
+        
+        if (profileData.name || profileData.username) {
+          finalCustomerName = profileData.name || profileData.username;
+        }
+        if (profileData.profile_pic) {
+          avatarUrl = profileData.profile_pic;
+        }
+      } catch (error) {
+        console.error("Failed to fetch user profile from Meta:", error);
+      }
+    }
+
+    // 4. Save Conversation
     let conversation = await prisma.conversation.findFirst({
-      where: { 
-        socialAccountId: socialAccount.id, 
-        customerName: senderName 
-      },
+      where: { socialAccountId: socialAccount.id, customerName: finalCustomerName },
     });
 
     if (!conversation) {
       conversation = await prisma.conversation.create({
         data: {
           socialAccountId: socialAccount.id,
-          customerName: senderName,
-          customerHandle: `@${senderName.toLowerCase()}`,
+          customerName: finalCustomerName,
+          customerHandle: `@${finalCustomerName.replace(/\s+/g, '').toLowerCase()}`,
           aiStatus: 'active',
+          // If your Prisma schema has an avatar field, you can save avatarUrl here
         },
       });
     }
 
-    // Save incoming message
     await prisma.message.create({
       data: {
         conversationId: conversation.id,
@@ -97,20 +107,9 @@ export async function POST(req: Request) {
       },
     });
 
-    // Create notification alert
-    await prisma.notification.create({
-      data: {
-        clientId: socialAccount.clientId,
-        socialAccountId: socialAccount.id,
-        type: 'MESSAGE',
-        content: `New message from ${senderName}`,
-        targetUrl: `/inbox`,
-      },
-    });
-
-    return NextResponse.json({ success: true, message: 'Message logged successfully' });
+    return NextResponse.json({ success: true, message: 'Processed successfully' });
   } catch (error) {
-    console.error('Webhook processing error:', error);
+    console.error('Webhook error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
